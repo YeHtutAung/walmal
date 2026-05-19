@@ -3,6 +3,7 @@ package com.walmal.infrastructure.cache;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.walmal.common.cache.CacheService;
+import com.walmal.common.exception.WalmalException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -41,7 +42,7 @@ public class RedisCacheService implements CacheService {
         try {
             redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(value));
         } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to serialize cache value", e);
+            throw new WalmalException("Failed to serialize cache value", e);
         }
     }
 
@@ -50,7 +51,7 @@ public class RedisCacheService implements CacheService {
         try {
             redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(value), ttl);
         } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to serialize cache value", e);
+            throw new WalmalException("Failed to serialize cache value", e);
         }
     }
 

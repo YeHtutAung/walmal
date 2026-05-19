@@ -1,5 +1,6 @@
 package com.walmal.infrastructure.storage;
 
+import com.walmal.common.exception.WalmalException;
 import com.walmal.common.storage.FileStorageService;
 import com.walmal.common.storage.StoredFile;
 import io.minio.*;
@@ -31,7 +32,7 @@ public class MinioFileStorageService implements FileStorageService {
                 .build());
             return new StoredFile(key, bucket, contentType, size);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to upload file: " + key, e);
+            throw new WalmalException("Failed to upload file: " + key, e);
         }
     }
 
@@ -43,7 +44,7 @@ public class MinioFileStorageService implements FileStorageService {
                 .object(key)
                 .build());
         } catch (Exception e) {
-            throw new RuntimeException("Failed to download file: " + key, e);
+            throw new WalmalException("Failed to download file: " + key, e);
         }
     }
 
@@ -55,7 +56,7 @@ public class MinioFileStorageService implements FileStorageService {
                 .object(key)
                 .build());
         } catch (Exception e) {
-            throw new RuntimeException("Failed to delete file: " + key, e);
+            throw new WalmalException("Failed to delete file: " + key, e);
         }
     }
 
@@ -69,7 +70,7 @@ public class MinioFileStorageService implements FileStorageService {
                 .expiry(1, TimeUnit.HOURS)
                 .build());
         } catch (Exception e) {
-            throw new RuntimeException("Failed to generate presigned URL: " + key, e);
+            throw new WalmalException("Failed to generate presigned URL: " + key, e);
         }
     }
 
