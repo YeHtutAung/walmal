@@ -1,5 +1,6 @@
 package com.walmal;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -9,6 +10,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import io.minio.MinioClient;
 
+@Tag("integration")
 @SpringBootTest(properties = {
     "spring.autoconfigure.exclude=" +
         "org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration," +
@@ -21,7 +23,9 @@ import io.minio.MinioClient;
     "spring.flyway.enabled=true",
     "walmal.minio.url=http://localhost:9000",
     "walmal.minio.access-key=test",
-    "walmal.minio.secret-key=test1234"
+    "walmal.minio.secret-key=test1234",
+    "walmal.jwt.secret=integration-test-secret-key-walmal-app-minimum-256-bits",
+    "walmal.jwt.access-token-expire-minutes=15"
 })
 class WalmalApplicationTest {
 

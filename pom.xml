@@ -21,11 +21,15 @@
     <modules>
         <module>walmal-common</module>
         <module>walmal-infrastructure</module>
+        <module>walmal-auth</module>
+        <module>walmal-product</module>
+        <module>walmal-inventory</module>
         <module>walmal-app</module>
     </modules>
 
     <properties>
         <java.version>21</java.version>
+        <maven.compiler.release>21</maven.compiler.release>
         <minio.version>8.5.13</minio.version>
         <testcontainers.version>1.20.4</testcontainers.version>
     </properties>
@@ -40,6 +44,21 @@
             <dependency>
                 <groupId>com.walmal</groupId>
                 <artifactId>walmal-infrastructure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.walmal</groupId>
+                <artifactId>walmal-auth</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.walmal</groupId>
+                <artifactId>walmal-product</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.walmal</groupId>
+                <artifactId>walmal-inventory</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

@@ -24,6 +24,18 @@
             <artifactId>walmal-infrastructure</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.walmal</groupId>
+            <artifactId>walmal-auth</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.walmal</groupId>
+            <artifactId>walmal-product</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.walmal</groupId>
+            <artifactId>walmal-inventory</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>

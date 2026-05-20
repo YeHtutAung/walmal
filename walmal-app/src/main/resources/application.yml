@@ -39,6 +39,9 @@ walmal:
     url: http://localhost:9000
     access-key: walmal
     secret-key: walmal123
+  jwt:
+    secret: ${WALMAL_JWT_SECRET:walmal-dev-secret-key-change-in-production-minimum-256-bits}
+    access-token-expire-minutes: 15
 
 management:
   endpoints:
@@ -51,6 +54,11 @@ management:
   health:
     mail:
       enabled: false
+
+inventory:
+  reservation:
+    expiry-job-interval-ms: 60000
+    default-expiry-minutes: 30
 
 springdoc:
   api-docs:
