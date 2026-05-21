@@ -34,6 +34,12 @@ spring:
     host: localhost
     port: 1025
 
+  mvc:
+    throw-exception-if-no-handler-found: true
+  web:
+    resources:
+      add-mappings: false
+
 walmal:
   minio:
     url: http://localhost:9000
@@ -47,13 +53,18 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: always
+    prometheus:
+      enabled: true
   health:
     mail:
       enabled: false
+  metrics:
+    tags:
+      application: walmal
 
 inventory:
   reservation:

@@ -3,6 +3,7 @@ package com.walmal.notification.api;
 import com.walmal.auth.application.TokenValidationService;
 import com.walmal.auth.config.AuthSecurityConfig;
 import com.walmal.auth.config.JwtProperties;
+import com.walmal.common.auth.AuthenticatedPrincipal;
 import com.walmal.notification.application.NotificationService;
 import com.walmal.notification.application.dto.NotificationSummaryDto;
 import com.walmal.notification.domain.NotificationStatus;
@@ -47,16 +48,19 @@ class NotificationControllerTest {
     @MockitoBean TokenValidationService tokenValidationService;
 
     private static final UUID USER_ID = UUID.randomUUID();
+    private static final UUID OTHER_USER_ID = UUID.randomUUID();
 
-    private UsernamePasswordAuthenticationToken customerAuth() {
+    private UsernamePasswordAuthenticationToken customerAuth(UUID userId) {
+        AuthenticatedPrincipal principal = new AuthenticatedPrincipal(userId, "customer", "CUSTOMER");
         return new UsernamePasswordAuthenticationToken(
-                "customer", "pw",
+                principal, null,
                 List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER")));
     }
 
     private UsernamePasswordAuthenticationToken adminAuth() {
+        AuthenticatedPrincipal principal = new AuthenticatedPrincipal(UUID.randomUUID(), "admin", "ADMIN");
         return new UsernamePasswordAuthenticationToken(
-                "admin", "pw",
+                principal, null,
                 List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
     }
 
@@ -68,13 +72,13 @@ class NotificationControllerTest {
     }
 
     @Test
-    @DisplayName("should_return200_when_listNotificationsForUser_asCustomer")
-    void should_return200_when_listNotificationsForUser_asCustomer() throws Exception {
+    @DisplayName("should_return200_when_listNotificationsForUser_asOwner")
+    void should_return200_when_listNotificationsForUser_asOwner() throws Exception {
         when(notificationService.listNotificationsForUser(eq(USER_ID), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(buildDto())));
 
         mockMvc.perform(get("/api/v1/notifications/users/{userId}", USER_ID)
-                        .with(authentication(customerAuth())))
+                        .with(authentication(customerAuth(USER_ID))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.content[0].type").value("IN_APP"));
@@ -89,6 +93,36 @@ class NotificationControllerTest {
                         .with(authentication(adminAuth())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.unreadCount").value(3));
+    }
+
+    @Test
+    @DisplayName("should_return400_when_customerAccessesOtherUsersNotifications")
+    void should_return400_when_customerAccessesOtherUsersNotifications() throws Exception {
+        mockMvc.perform(get("/api/v1/notifications/users/{userId}", OTHER_USER_ID)
+                        .with(authentication(customerAuth(USER_ID))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @DisplayName("should_return400_when_customerAccessesOtherUsersUnreadCount")
+    void should_return400_when_customerAccessesOtherUsersUnreadCount() throws Exception {
+        mockMvc.perform(get("/api/v1/notifications/users/{userId}/unread-count", OTHER_USER_ID)
+                        .with(authentication(customerAuth(USER_ID))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @DisplayName("should_return200_when_adminAccessesOtherUsersNotifications")
+    void should_return200_when_adminAccessesOtherUsersNotifications() throws Exception {
+        when(notificationService.listNotificationsForUser(eq(USER_ID), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(buildDto())));
+
+        mockMvc.perform(get("/api/v1/notifications/users/{userId}", USER_ID)
+                        .with(authentication(adminAuth())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
     }
 
     @Test

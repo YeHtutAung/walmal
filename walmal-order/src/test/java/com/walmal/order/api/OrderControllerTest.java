@@ -76,10 +76,51 @@ class OrderControllerTest {
     }
 
     @Test
-    @DisplayName("should_return200_when_getOrder")
-    @WithMockUser(username = "customer1", roles = "CUSTOMER")
-    void should_return200_when_getOrder() throws Exception {
+    @DisplayName("should_return200_when_getOrder_asOwner")
+    void should_return200_when_getOrder_asOwner() throws Exception {
         UUID orderId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        AuthenticatedPrincipal owner = new AuthenticatedPrincipal(ownerId, "customer1", "CUSTOMER");
+        OrderDetailDto dto = new OrderDetailDto(
+                orderId, ownerId, OrderStatus.CONFIRMED,
+                BigDecimal.valueOf(99.99), "USD",
+                new ShippingAddress("1 Main St", null, "City", "US", "12345"),
+                List.of(), Instant.now());
+
+        when(orderQueryService.getOrder(orderId)).thenReturn(dto);
+
+        mockMvc.perform(get("/api/v1/orders/{orderId}", orderId)
+                        .with(authentication(buildAuth(owner))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("CONFIRMED"));
+    }
+
+    @Test
+    @DisplayName("should_return409_when_customerAccessesOtherUsersOrder")
+    void should_return409_when_customerAccessesOtherUsersOrder() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        AuthenticatedPrincipal other = new AuthenticatedPrincipal(UUID.randomUUID(), "other", "CUSTOMER");
+        OrderDetailDto dto = new OrderDetailDto(
+                orderId, ownerId, OrderStatus.CONFIRMED,
+                BigDecimal.valueOf(99.99), "USD",
+                new ShippingAddress("1 Main St", null, "City", "US", "12345"),
+                List.of(), Instant.now());
+
+        when(orderQueryService.getOrder(orderId)).thenReturn(dto);
+
+        mockMvc.perform(get("/api/v1/orders/{orderId}", orderId)
+                        .with(authentication(buildAuth(other))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @DisplayName("should_return200_when_adminAccessesAnyOrder")
+    void should_return200_when_adminAccessesAnyOrder() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        AuthenticatedPrincipal admin = new AuthenticatedPrincipal(UUID.randomUUID(), "admin", "ADMIN");
         OrderDetailDto dto = new OrderDetailDto(
                 orderId, UUID.randomUUID(), OrderStatus.CONFIRMED,
                 BigDecimal.valueOf(99.99), "USD",
@@ -88,10 +129,10 @@ class OrderControllerTest {
 
         when(orderQueryService.getOrder(orderId)).thenReturn(dto);
 
-        mockMvc.perform(get("/api/v1/orders/{orderId}", orderId))
+        mockMvc.perform(get("/api/v1/orders/{orderId}", orderId)
+                        .with(authentication(buildAuth(admin))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.status").value("CONFIRMED"));
+                .andExpect(jsonPath("$.success").value(true));
     }
 
     @Test
@@ -109,15 +150,38 @@ class OrderControllerTest {
     // ── GET order status ──────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("should_return200_when_getOrderStatus")
-    @WithMockUser(username = "customer1", roles = "CUSTOMER")
-    void should_return200_when_getOrderStatus() throws Exception {
+    @DisplayName("should_return200_when_getOrderStatus_asOwner")
+    void should_return200_when_getOrderStatus_asOwner() throws Exception {
         UUID orderId = UUID.randomUUID();
-        when(orderQueryService.getOrderStatus(orderId)).thenReturn(OrderStatus.PENDING);
+        UUID ownerId = UUID.randomUUID();
+        AuthenticatedPrincipal owner = new AuthenticatedPrincipal(ownerId, "customer1", "CUSTOMER");
+        OrderDetailDto dto = new OrderDetailDto(
+                orderId, ownerId, OrderStatus.PENDING,
+                BigDecimal.valueOf(99.99), "USD", null, List.of(), Instant.now());
 
-        mockMvc.perform(get("/api/v1/orders/{orderId}/status", orderId))
+        when(orderQueryService.getOrder(orderId)).thenReturn(dto);
+
+        mockMvc.perform(get("/api/v1/orders/{orderId}/status", orderId)
+                        .with(authentication(buildAuth(owner))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").value("PENDING"));
+    }
+
+    @Test
+    @DisplayName("should_return409_when_customerAccessesOtherUsersOrderStatus")
+    void should_return409_when_customerAccessesOtherUsersOrderStatus() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        AuthenticatedPrincipal other = new AuthenticatedPrincipal(UUID.randomUUID(), "other", "CUSTOMER");
+        OrderDetailDto dto = new OrderDetailDto(
+                orderId, UUID.randomUUID(), OrderStatus.PENDING,
+                BigDecimal.valueOf(99.99), "USD", null, List.of(), Instant.now());
+
+        when(orderQueryService.getOrder(orderId)).thenReturn(dto);
+
+        mockMvc.perform(get("/api/v1/orders/{orderId}/status", orderId)
+                        .with(authentication(buildAuth(other))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false));
     }
 
     // ── GET list orders ───────────────────────────────────────────────────────

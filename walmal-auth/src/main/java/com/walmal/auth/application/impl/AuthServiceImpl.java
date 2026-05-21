@@ -101,7 +101,9 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessRuleException("Email already registered: " + request.email());
         }
 
-        Role role = resolveRole(request.role());
+        // SECURITY: Self-registration always assigns CUSTOMER role.
+        // Privileged roles (ADMIN, STAFF, etc.) require admin-created accounts.
+        Role role = Role.CUSTOMER;
         String hash = passwordEncoder.encode(request.password());
 
         User user = new User(request.username(), request.email(), hash, role);
@@ -253,14 +255,4 @@ public class AuthServiceImpl implements AuthService {
                 user.getRole().name());
     }
 
-    private Role resolveRole(String roleStr) {
-        if (roleStr == null || roleStr.isBlank()) {
-            return Role.CUSTOMER;
-        }
-        try {
-            return Role.valueOf(roleStr.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new BusinessRuleException("Invalid role: " + roleStr);
-        }
-    }
 }

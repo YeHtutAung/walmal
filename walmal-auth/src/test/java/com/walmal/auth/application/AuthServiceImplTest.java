@@ -132,6 +132,34 @@ class AuthServiceImplTest {
     }
 
     @Test
+    @DisplayName("should_assignCustomerRole_when_registerRequestContainsAdminRole")
+    void should_assignCustomerRole_when_registerRequestContainsAdminRole() {
+        when(userRepository.existsByUsername("evil")).thenReturn(false);
+        when(userRepository.existsByEmail("evil@example.com")).thenReturn(false);
+
+        User savedUser = buildUser(Role.CUSTOMER, "password123");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User u = invocation.getArgument(0);
+            assertThat(u.getRole()).isEqualTo(Role.CUSTOMER);
+            // Set ID via reflection for token generation
+            try {
+                var idField = com.walmal.common.model.BaseEntity.class.getDeclaredField("id");
+                idField.setAccessible(true);
+                idField.set(u, UUID.randomUUID());
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            return u;
+        });
+        when(jwtTokenProvider.generateAccessToken(any(User.class))).thenReturn("token");
+
+        TokenResponse response = authService.register(
+                new RegisterRequest("evil", "evil@example.com", "password123", "ADMIN"));
+
+        assertThat(response.role()).isEqualTo("CUSTOMER");
+    }
+
+    @Test
     @DisplayName("should_throwBusinessRuleException_when_usernameAlreadyTaken")
     void should_throwBusinessRuleException_when_usernameAlreadyTaken() {
         when(userRepository.existsByUsername("bob")).thenReturn(true);

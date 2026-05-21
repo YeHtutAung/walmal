@@ -1,6 +1,7 @@
 package com.walmal.order.api;
 
 import com.walmal.common.auth.AuthenticatedPrincipal;
+import com.walmal.common.exception.BusinessRuleException;
 import com.walmal.common.model.ApiResponse;
 import com.walmal.order.api.dto.CreateOrderRequest;
 import com.walmal.order.application.OrderCreationService;
@@ -81,10 +82,15 @@ public class OrderController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "OK"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Not your order"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Order not found")
     })
-    public ApiResponse<OrderDetailDto> getOrder(@PathVariable UUID orderId) {
-        return ApiResponse.ok(orderQueryService.getOrder(orderId));
+    public ApiResponse<OrderDetailDto> getOrder(
+            @PathVariable UUID orderId,
+            @AuthenticationPrincipal AuthenticatedPrincipal principal) {
+        OrderDetailDto order = orderQueryService.getOrder(orderId);
+        verifyOrderOwnership(order.userId(), principal);
+        return ApiResponse.ok(order);
     }
 
     @GetMapping
@@ -108,10 +114,15 @@ public class OrderController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "OK"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Not your order"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Order not found")
     })
-    public ApiResponse<OrderStatus> getOrderStatus(@PathVariable UUID orderId) {
-        return ApiResponse.ok(orderQueryService.getOrderStatus(orderId));
+    public ApiResponse<OrderStatus> getOrderStatus(
+            @PathVariable UUID orderId,
+            @AuthenticationPrincipal AuthenticatedPrincipal principal) {
+        OrderDetailDto order = orderQueryService.getOrder(orderId);
+        verifyOrderOwnership(order.userId(), principal);
+        return ApiResponse.ok(order.status());
     }
 
     @PutMapping("/{orderId}/cancel")
@@ -144,6 +155,18 @@ public class OrderController {
     })
     public void fulfillOrder(@PathVariable UUID orderId) {
         orderFulfillmentService.markFulfilled(orderId);
+    }
+
+    // ── Ownership verification ──────────────────────────────────────────────
+
+    private void verifyOrderOwnership(UUID orderUserId, AuthenticatedPrincipal principal) {
+        String role = principal.role();
+        if ("ADMIN".equals(role) || "STAFF".equals(role)) {
+            return;
+        }
+        if (!orderUserId.equals(principal.userId())) {
+            throw new BusinessRuleException("Access denied: you can only view your own orders");
+        }
     }
 
     // ── Mapping helpers ───────────────────────────────────────────────────────

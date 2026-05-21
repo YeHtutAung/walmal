@@ -21,8 +21,9 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import com.walmal.common.model.ApiResponse;
+
 import java.util.List;
-import java.util.Map;
 
 /**
  * Spring Security 6 configuration for the walmal-auth module.
@@ -64,13 +65,13 @@ public class AuthSecurityConfig {
                             res.setStatus(HttpStatus.UNAUTHORIZED.value());
                             res.setContentType(MediaType.APPLICATION_JSON_VALUE);
                             objectMapper.writeValue(res.getWriter(),
-                                    Map.of("error", "Unauthorized", "message", authEx.getMessage()));
+                                    ApiResponse.error("Authentication required."));
                         })
                         .accessDeniedHandler((req, res, accessEx) -> {
                             res.setStatus(HttpStatus.FORBIDDEN.value());
                             res.setContentType(MediaType.APPLICATION_JSON_VALUE);
                             objectMapper.writeValue(res.getWriter(),
-                                    Map.of("error", "Forbidden", "message", accessEx.getMessage()));
+                                    ApiResponse.error("Access denied."));
                         }))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, PUBLIC_POST_PATHS).permitAll()
