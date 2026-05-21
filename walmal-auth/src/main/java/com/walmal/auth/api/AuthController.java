@@ -1,5 +1,6 @@
 package com.walmal.auth.api;
 
+import com.walmal.auth.api.dto.CreateUserRequest;
 import com.walmal.auth.api.dto.LoginRequest;
 import com.walmal.auth.api.dto.RefreshTokenRequest;
 import com.walmal.auth.api.dto.RegisterRequest;
@@ -111,6 +112,28 @@ public class AuthController {
     public ResponseEntity<UserProfileResponse> me(
             @AuthenticationPrincipal AuthenticatedPrincipal principal) {
         return ResponseEntity.ok(authService.getCurrentUser(principal.userId()));
+    }
+
+    // ── Create user (admin-only) ──────────────────────────────────────────────
+
+    @Operation(
+            summary = "Create user",
+            description = "Creates a new user account with any role. Requires ADMIN role",
+            security = @SecurityRequirement(name = "bearerAuth"))
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "User created"),
+            @ApiResponse(responseCode = "400", description = "Invalid request body or role"),
+            @ApiResponse(responseCode = "401", description = "Not authenticated"),
+            @ApiResponse(responseCode = "403", description = "Insufficient role — ADMIN required"),
+            @ApiResponse(responseCode = "409", description = "Username or email already exists")
+    })
+    @PostMapping("/users")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserProfileResponse> createUser(
+            @Valid @RequestBody CreateUserRequest request,
+            @AuthenticationPrincipal AuthenticatedPrincipal principal) {
+        UserProfileResponse profile = authService.createUser(request, principal.username());
+        return ResponseEntity.status(HttpStatus.CREATED).body(profile);
     }
 
     // ── Deactivate user ───────────────────────────────────────────────────────

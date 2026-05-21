@@ -1,5 +1,6 @@
 package com.walmal.auth.application;
 
+import com.walmal.auth.api.dto.CreateUserRequest;
 import com.walmal.auth.api.dto.LoginRequest;
 import com.walmal.auth.api.dto.RegisterRequest;
 import com.walmal.auth.api.dto.TokenResponse;
@@ -61,4 +62,12 @@ public interface AuthService {
      * @throws com.walmal.common.exception.ResourceNotFoundException if userId not found
      */
     UserProfileResponse getCurrentUser(UUID userId);
+
+    /**
+     * Admin-only: creates a user account with any role (ADMIN, STAFF, CASHIER, CUSTOMER).
+     *
+     * @throws com.walmal.common.exception.BusinessRuleException if username/email already exists
+     *         or role is invalid
+     */
+    UserProfileResponse createUser(CreateUserRequest request, String performedBy);
 }

@@ -1,8 +1,10 @@
 package com.walmal.auth.application;
 
+import com.walmal.auth.api.dto.CreateUserRequest;
 import com.walmal.auth.api.dto.LoginRequest;
 import com.walmal.auth.api.dto.RegisterRequest;
 import com.walmal.auth.api.dto.TokenResponse;
+import com.walmal.auth.api.dto.UserProfileResponse;
 import com.walmal.auth.application.impl.AuthServiceImpl;
 import com.walmal.auth.domain.RefreshTokenRecord;
 import com.walmal.auth.domain.Role;
@@ -259,6 +261,67 @@ class AuthServiceImplTest {
         assertThat(response.accessToken()).isEqualTo("new.access.token");
         verify(refreshTokenAdapter).delete(userId, tokenId);
         verify(refreshTokenAdapter).store(eq(user.getId()), any(UUID.class), any(RefreshTokenRecord.class));
+    }
+
+    // ── Create user (admin-only) ──────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should_returnUserProfile_when_createUserWithValidRole")
+    void should_returnUserProfile_when_createUserWithValidRole() {
+        when(userRepository.existsByUsername("staff1")).thenReturn(false);
+        when(userRepository.existsByEmail("staff1@walmal.com")).thenReturn(false);
+
+        User savedUser = buildUser(Role.STAFF, "password123");
+        when(userRepository.save(any(User.class))).thenReturn(savedUser);
+
+        UserProfileResponse profile = authService.createUser(
+                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "STAFF"), "admin");
+
+        assertThat(profile.role()).isEqualTo("STAFF");
+        assertThat(profile.isActive()).isTrue();
+        verify(eventPublisher).publish(any(DomainEvent.class), eq("auth.user.registered"));
+    }
+
+    @Test
+    @DisplayName("should_acceptAnyValidRole_when_createUser")
+    void should_acceptAnyValidRole_when_createUser() {
+        when(userRepository.existsByUsername(anyString())).thenReturn(false);
+        when(userRepository.existsByEmail(anyString())).thenReturn(false);
+
+        User savedUser = buildUser(Role.ADMIN, "password123");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User u = invocation.getArgument(0);
+            assertThat(u.getRole()).isEqualTo(Role.ADMIN);
+            return savedUser;
+        });
+
+        UserProfileResponse profile = authService.createUser(
+                new CreateUserRequest("admin2", "admin2@walmal.com", "password123", "ADMIN"), "admin");
+
+        assertThat(profile.role()).isEqualTo("ADMIN");
+    }
+
+    @Test
+    @DisplayName("should_throwBusinessRuleException_when_createUserWithInvalidRole")
+    void should_throwBusinessRuleException_when_createUserWithInvalidRole() {
+        when(userRepository.existsByUsername("staff1")).thenReturn(false);
+        when(userRepository.existsByEmail("staff1@walmal.com")).thenReturn(false);
+
+        assertThatThrownBy(() -> authService.createUser(
+                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "SUPERADMIN"), "admin"))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("Invalid role");
+    }
+
+    @Test
+    @DisplayName("should_throwBusinessRuleException_when_createUserWithDuplicateUsername")
+    void should_throwBusinessRuleException_when_createUserWithDuplicateUsername() {
+        when(userRepository.existsByUsername("existing")).thenReturn(true);
+
+        assertThatThrownBy(() -> authService.createUser(
+                new CreateUserRequest("existing", "new@walmal.com", "password123", "STAFF"), "admin"))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("Username already taken");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

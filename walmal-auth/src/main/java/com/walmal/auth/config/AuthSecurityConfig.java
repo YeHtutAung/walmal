@@ -85,6 +85,8 @@ public class AuthSecurityConfig {
                         .requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS).permitAll()
                         .requestMatchers("/api-docs", "/api-docs/**",
                                 "/actuator/prometheus", "/actuator/metrics", "/actuator/metrics/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/users")
+                                .hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/users/{id}/deactivate")
                                 .hasRole("ADMIN")
                         .anyRequest().authenticated())

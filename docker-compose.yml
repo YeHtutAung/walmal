@@ -64,6 +64,39 @@ services:
       timeout: 5s
       retries: 5
 
+  app:
+    build: .
+    container_name: walmal-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/walmal
+      SPRING_DATASOURCE_USERNAME: walmal
+      SPRING_DATASOURCE_PASSWORD: walmal
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: walmal
+      SPRING_RABBITMQ_PASSWORD: walmal
+      WALMAL_MINIO_URL: http://minio:9000
+      WALMAL_MINIO_ACCESS_KEY: walmal
+      WALMAL_MINIO_SECRET_KEY: walmal123
+      WALMAL_JWT_SECRET: walmal-docker-secret-key-change-in-production-minimum-256-bits
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
 volumes:
   walmal-postgres-data:
   walmal-redis-data:

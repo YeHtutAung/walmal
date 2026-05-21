@@ -1,5 +1,6 @@
 package com.walmal.auth.application.impl;
 
+import com.walmal.auth.api.dto.CreateUserRequest;
 import com.walmal.auth.api.dto.LoginRequest;
 import com.walmal.auth.api.dto.RegisterRequest;
 import com.walmal.auth.api.dto.TokenResponse;
@@ -220,6 +221,43 @@ public class AuthServiceImpl implements AuthService {
     public UserProfileResponse getCurrentUser(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+
+        return new UserProfileResponse(
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getRole().name(),
+                user.isActive());
+    }
+
+    // ── Create user (admin-only) ───────────────────────────────────────────────
+
+    @Override
+    @Transactional
+    public UserProfileResponse createUser(CreateUserRequest request, String performedBy) {
+        if (userRepository.existsByUsername(request.username())) {
+            throw new BusinessRuleException("Username already taken: " + request.username());
+        }
+        if (userRepository.existsByEmail(request.email())) {
+            throw new BusinessRuleException("Email already registered: " + request.email());
+        }
+
+        Role role;
+        try {
+            role = Role.valueOf(request.role().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BusinessRuleException("Invalid role: " + request.role());
+        }
+
+        String hash = passwordEncoder.encode(request.password());
+        User user = new User(request.username(), request.email(), hash, role);
+        user = userRepository.save(user);
+
+        log.info("User created by admin {}: {} (role={})", performedBy, user.getUsername(), role);
+
+        eventPublisher.publish(
+                new UserRegisteredEvent(user.getId(), user.getUsername(), user.getEmail(), role.name()),
+                "auth.user.registered");
 
         return new UserProfileResponse(
                 user.getId(),

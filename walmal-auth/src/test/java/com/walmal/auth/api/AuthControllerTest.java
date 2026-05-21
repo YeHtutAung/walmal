@@ -1,6 +1,7 @@
 package com.walmal.auth.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.walmal.auth.api.dto.CreateUserRequest;
 import com.walmal.auth.api.dto.LoginRequest;
 import com.walmal.auth.api.dto.RefreshTokenRequest;
 import com.walmal.auth.api.dto.RegisterRequest;
@@ -179,6 +180,82 @@ class AuthControllerTest {
     void should_return401_when_deactivateCalledWithoutAuthentication() throws Exception {
         mockMvc.perform(post("/api/v1/auth/users/{id}/deactivate", UUID.randomUUID()))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // ── Create user (admin-only) ──────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should_return201_when_adminCreatesUser")
+    void should_return201_when_adminCreatesUser() throws Exception {
+        UUID newUserId = UUID.randomUUID();
+        AuthenticatedPrincipal adminPrincipal = new AuthenticatedPrincipal(UUID.randomUUID(), "admin", "ADMIN");
+        UserProfileResponse profile = new UserProfileResponse(newUserId, "staff1", "staff1@walmal.com", "STAFF", true);
+
+        when(authService.createUser(any(CreateUserRequest.class), anyString())).thenReturn(profile);
+
+        mockMvc.perform(post("/api/v1/auth/users")
+                        .with(authentication(buildAuth(adminPrincipal)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "STAFF"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.username").value("staff1"))
+                .andExpect(jsonPath("$.role").value("STAFF"));
+    }
+
+    @Test
+    @DisplayName("should_return403_when_nonAdminCreatesUser")
+    void should_return403_when_nonAdminCreatesUser() throws Exception {
+        AuthenticatedPrincipal customerPrincipal = new AuthenticatedPrincipal(UUID.randomUUID(), "customer1", "CUSTOMER");
+
+        mockMvc.perform(post("/api/v1/auth/users")
+                        .with(authentication(buildAuth(customerPrincipal)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "STAFF"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("should_return401_when_unauthenticatedCreatesUser")
+    void should_return401_when_unauthenticatedCreatesUser() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "STAFF"))))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("should_return409_when_adminCreatesUserWithDuplicateUsername")
+    void should_return409_when_adminCreatesUserWithDuplicateUsername() throws Exception {
+        AuthenticatedPrincipal adminPrincipal = new AuthenticatedPrincipal(UUID.randomUUID(), "admin", "ADMIN");
+
+        when(authService.createUser(any(CreateUserRequest.class), anyString()))
+                .thenThrow(new BusinessRuleException("Username already taken: staff1"));
+
+        mockMvc.perform(post("/api/v1/auth/users")
+                        .with(authentication(buildAuth(adminPrincipal)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "STAFF"))))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    @DisplayName("should_return400_when_adminCreatesUserWithInvalidRole")
+    void should_return400_when_adminCreatesUserWithInvalidRole() throws Exception {
+        AuthenticatedPrincipal adminPrincipal = new AuthenticatedPrincipal(UUID.randomUUID(), "admin", "ADMIN");
+
+        when(authService.createUser(any(CreateUserRequest.class), anyString()))
+                .thenThrow(new BusinessRuleException("Invalid role: SUPERADMIN"));
+
+        mockMvc.perform(post("/api/v1/auth/users")
+                        .with(authentication(buildAuth(adminPrincipal)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "SUPERADMIN"))))
+                .andExpect(status().isBadRequest());
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

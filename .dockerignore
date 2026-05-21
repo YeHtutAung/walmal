@@ -1,0 +1,12 @@
+**/target/
+**/.idea/
+**/.vscode/
+**/.claude/
+**/node_modules/
+.git/
+*.md
+!README.md
+docker-compose.yml
+.env
+.dockerignore
+Dockerfile
