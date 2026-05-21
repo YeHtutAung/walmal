@@ -4,9 +4,11 @@ import com.walmal.common.notification.Notification;
 import com.walmal.common.notification.NotificationChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Service;
 
 @Service
+@ConditionalOnMissingBean(name = "inAppNotificationChannelImpl")
 public class InAppNotificationChannel implements NotificationChannel {
 
     private static final Logger log = LoggerFactory.getLogger(InAppNotificationChannel.class);

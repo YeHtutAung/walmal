@@ -287,6 +287,7 @@ class InventoryIntegrationTest {
                 @Override public Optional<com.walmal.product.application.dto.VariantSummaryDto> findVariantBySku(String sku) { return Optional.empty(); }
                 @Override public com.walmal.product.application.dto.ProductDetailDto getProductDetails(UUID productId) { return null; }
                 @Override public boolean isVariantActive(UUID variantId) { return true; } // all active in tests
+                @Override public Optional<com.walmal.product.application.dto.VariantSummaryDto> findVariantById(UUID variantId) { return Optional.empty(); }
             };
         }
 

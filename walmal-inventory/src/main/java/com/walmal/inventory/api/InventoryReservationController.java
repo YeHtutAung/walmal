@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -89,19 +90,19 @@ public class InventoryReservationController {
     }
 
     @PostMapping("/resolve-conflict")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Resolve POS offline sync conflict",
                description = "Determines POS priority vs buffer stock vs BUFFER_EXHAUSTED. " +
-                             "Called by POS module during online sync.")
+                             "Called by POS module during online sync. Returns the resolution outcome.")
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "Resolved"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "Conflict resolution failed")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Resolved — outcome in body"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized")
     })
-    public void resolveConflict(@Valid @RequestBody PosConflictRequest request) {
-        reservationService.resolveConflict(
+    public ResponseEntity<com.walmal.inventory.application.ConflictResolutionResult> resolveConflict(
+            @Valid @RequestBody PosConflictRequest request) {
+        com.walmal.inventory.application.ConflictResolutionResult result = reservationService.resolveConflict(
                 request.posSaleId(), request.variantId(), request.locationId(),
                 request.quantity(), request.posSaleTimestamp(), request.webOrderId());
+        return ResponseEntity.ok(result);
     }
 }

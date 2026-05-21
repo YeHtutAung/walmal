@@ -36,4 +36,16 @@ public interface ProductCatalogService {
      * have status ACTIVE. Used by Order to reject orders for discontinued items.
      */
     boolean isVariantActive(UUID variantId);
+
+    /**
+     * Returns lightweight variant details by variant UUID for use during order creation.
+     *
+     * <p>Required by the Order module to snapshot product name and SKU at order creation time
+     * when only the variantId is available (no SKU provided by the caller). Returns empty if
+     * the variant does not exist or belongs to an inactive product.</p>
+     *
+     * <p>ISP note: added alongside {@link #findVariantBySku} to serve the Order module's
+     * lookup-by-id use case without requiring the caller to supply a SKU upfront.</p>
+     */
+    Optional<VariantSummaryDto> findVariantById(UUID variantId);
 }

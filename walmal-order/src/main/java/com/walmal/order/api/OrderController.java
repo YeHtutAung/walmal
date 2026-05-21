@@ -1,0 +1,162 @@
+package com.walmal.order.api;
+
+import com.walmal.common.auth.AuthenticatedPrincipal;
+import com.walmal.common.model.ApiResponse;
+import com.walmal.order.api.dto.CreateOrderRequest;
+import com.walmal.order.application.OrderCreationService;
+import com.walmal.order.application.OrderFulfillmentService;
+import com.walmal.order.application.OrderQueryService;
+import com.walmal.order.application.dto.OrderDetailDto;
+import com.walmal.order.application.dto.OrderLineItem;
+import com.walmal.order.application.dto.OrderSummaryDto;
+import com.walmal.order.domain.OrderStatus;
+import com.walmal.order.domain.ShippingAddress;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
+
+/**
+ * REST controller for order operations.
+ * Base path: {@code /api/v1/orders}
+ *
+ * <p>No business logic lives here — all work is delegated to service interfaces.</p>
+ */
+@RestController
+@RequestMapping("/api/v1/orders")
+@Tag(name = "Orders", description = "Order creation, status management, and fulfilment")
+public class OrderController {
+
+    private final OrderCreationService orderCreationService;
+    private final OrderQueryService orderQueryService;
+    private final OrderFulfillmentService orderFulfillmentService;
+
+    public OrderController(OrderCreationService orderCreationService,
+                            OrderQueryService orderQueryService,
+                            OrderFulfillmentService orderFulfillmentService) {
+        this.orderCreationService = orderCreationService;
+        this.orderQueryService = orderQueryService;
+        this.orderFulfillmentService = orderFulfillmentService;
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Place a new order",
+               description = "Creates a new order, reserves inventory, and processes payment. " +
+                             "Returns the new order ID on success.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Order created"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid request"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "Business rule violation (inactive variant, insufficient stock)")
+    })
+    public ApiResponse<UUID> createOrder(
+            @Valid @RequestBody CreateOrderRequest request,
+            @AuthenticationPrincipal AuthenticatedPrincipal principal) {
+
+        ShippingAddress address = mapAddress(request);
+        java.util.List<OrderLineItem> items = request.items().stream()
+                .map(i -> new OrderLineItem(i.variantId(), i.locationId(), i.quantity()))
+                .toList();
+
+        UUID orderId = orderCreationService.createOrder(
+                principal.userId(), items, address, request.currency());
+        return ApiResponse.ok("Order created", orderId);
+    }
+
+    @GetMapping("/{orderId}")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get order details",
+               description = "Returns full order details including all line items.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "OK"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Order not found")
+    })
+    public ApiResponse<OrderDetailDto> getOrder(@PathVariable UUID orderId) {
+        return ApiResponse.ok(orderQueryService.getOrder(orderId));
+    }
+
+    @GetMapping
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "List my orders",
+               description = "Returns a paginated list of orders placed by the authenticated user.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "OK"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
+    public ApiResponse<Page<OrderSummaryDto>> listMyOrders(
+            @AuthenticationPrincipal AuthenticatedPrincipal principal,
+            @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
+        return ApiResponse.ok(orderQueryService.listOrdersByUser(principal.userId(), pageable));
+    }
+
+    @GetMapping("/{orderId}/status")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get order status",
+               description = "Returns the current lifecycle status of an order.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "OK"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Order not found")
+    })
+    public ApiResponse<OrderStatus> getOrderStatus(@PathVariable UUID orderId) {
+        return ApiResponse.ok(orderQueryService.getOrderStatus(orderId));
+    }
+
+    @PutMapping("/{orderId}/cancel")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Cancel a pending order",
+               description = "Cancels a PENDING order, releases inventory, and refunds (stub for MVP).")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "Cancelled"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Order not found"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "Order is not in a cancellable state")
+    })
+    public void cancelOrder(@PathVariable UUID orderId,
+                             @AuthenticationPrincipal AuthenticatedPrincipal principal) {
+        orderCreationService.cancelOrder(orderId, principal.userId());
+    }
+
+    @PutMapping("/{orderId}/fulfill")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF', 'ADMIN')")
+    @Operation(summary = "Mark an order as fulfilled",
+               description = "Transitions a CONFIRMED order to FULFILLED. Warehouse staff or Admin only.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "Fulfilled"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Forbidden"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Order not found"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "Order is not in CONFIRMED state")
+    })
+    public void fulfillOrder(@PathVariable UUID orderId) {
+        orderFulfillmentService.markFulfilled(orderId);
+    }
+
+    // ── Mapping helpers ───────────────────────────────────────────────────────
+
+    private ShippingAddress mapAddress(CreateOrderRequest request) {
+        if (request.shippingAddress() == null) {
+            return null;
+        }
+        return new ShippingAddress(
+                request.shippingAddress().line1(),
+                request.shippingAddress().line2(),
+                request.shippingAddress().city(),
+                request.shippingAddress().country(),
+                request.shippingAddress().postalCode());
+    }
+}

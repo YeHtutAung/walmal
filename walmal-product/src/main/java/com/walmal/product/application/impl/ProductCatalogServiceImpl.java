@@ -97,6 +97,22 @@ public class ProductCatalogServiceImpl implements ProductCatalogService {
                 .orElse(false);
     }
 
+    @Override
+    public Optional<VariantSummaryDto> findVariantById(UUID variantId) {
+        String cacheKey = VARIANT_CACHE_PREFIX + variantId;
+        Optional<VariantSummaryDto> cached = cacheService.get(cacheKey, VariantSummaryDto.class);
+        if (cached.isPresent()) {
+            log.debug("Cache hit for variant id: {}", variantId);
+            return cached;
+        }
+
+        Optional<ProductVariant> variant = variantRepository.findByIdWithProduct(variantId);
+        Optional<VariantSummaryDto> result = variant.map(v -> toVariantSummaryDto(v, v.getProduct()));
+
+        result.ifPresent(dto -> cacheService.put(cacheKey, dto, VARIANT_TTL));
+        return result;
+    }
+
     // ── Mapping helpers ───────────────────────────────────────────────────────
 
     private VariantSummaryDto toVariantSummaryDto(ProductVariant v, Product p) {

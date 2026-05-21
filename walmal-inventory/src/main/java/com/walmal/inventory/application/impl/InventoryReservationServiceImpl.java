@@ -8,6 +8,8 @@ import com.walmal.common.event.DomainEventPublisher;
 import com.walmal.common.exception.BusinessRuleException;
 import com.walmal.common.exception.ConcurrencyConflictException;
 import com.walmal.common.exception.ResourceNotFoundException;
+import com.walmal.inventory.application.ConflictOutcome;
+import com.walmal.inventory.application.ConflictResolutionResult;
 import com.walmal.inventory.application.InventoryReservationService;
 import com.walmal.inventory.domain.*;
 import com.walmal.inventory.domain.event.*;
@@ -247,8 +249,8 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
 
     @Override
     @Transactional
-    public void resolveConflict(UUID posSaleId, UUID variantId, UUID locationId,
-                                 int quantity, Instant posSaleTimestamp, UUID webOrderId) {
+    public ConflictResolutionResult resolveConflict(UUID posSaleId, UUID variantId, UUID locationId,
+                                                     int quantity, Instant posSaleTimestamp, UUID webOrderId) {
 
         // Step 2: POS wins if its timestamp is before the web reservation's createdAt
         if (webOrderId != null) {
@@ -261,7 +263,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                 // POS wins — release web reservation, then deduct stock directly
                 releaseReservation(webOrderId, ConflictReason.POS_PRIORITY);
                 deductStockDirect(variantId, locationId, quantity, posSaleId, "system:pos-sync");
-                return;
+                return ConflictResolutionResult.posPriority(locationId, webOrderId);
             }
         }
 
@@ -269,7 +271,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
         int updated = stockRepo.decrementStockDirect(variantId, locationId, quantity);
         if (updated == 1) {
             writeMovementAndEvict(variantId, locationId, quantity, posSaleId);
-            return;
+            return ConflictResolutionResult.noConflict(locationId);
         }
 
         // Step 4: Try buffer locations
@@ -278,11 +280,11 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
             int bufferUpdated = stockRepo.decrementStockDirect(variantId, buffer.getId(), quantity);
             if (bufferUpdated == 1) {
                 writeMovementAndEvict(variantId, buffer.getId(), quantity, posSaleId);
-                return;
+                return ConflictResolutionResult.noConflict(buffer.getId());
             }
         }
 
-        // Step 5: Buffer exhausted — release web reservation with BUFFER_EXHAUSTED
+        // Step 5: Buffer exhausted — release web reservation with BUFFER_EXHAUSTED if present
         if (webOrderId != null) {
             auditService.log(new AuditEntry(
                     "inventory_reservations",
@@ -292,8 +294,11 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                     "{\"status\":\"RELEASED\",\"conflictReason\":\"BUFFER_EXHAUSTED\"}",
                     "system:pos-sync"));
             releaseReservation(webOrderId, ConflictReason.BUFFER_EXHAUSTED);
+            return ConflictResolutionResult.bufferExhausted(webOrderId);
         }
-        // POS sale recorded as debt — warehouse reconciliation handles it (out of scope for MVP)
+
+        // Step 6: No web order, no stock — accept as reconciliation debt (MVP)
+        return ConflictResolutionResult.stockUnavailable();
     }
 
     private void deductStockDirect(UUID variantId, UUID locationId,

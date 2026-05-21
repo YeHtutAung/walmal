@@ -337,11 +337,12 @@ class InventoryReservationServiceImplTest {
         when(stockRepo.findByVariantIdAndLocationId(variantId, locationId))
                 .thenReturn(Optional.of(stock));
 
-        service.resolveConflict(posSaleId, variantId, locationId, 5,
+        var result = service.resolveConflict(posSaleId, variantId, locationId, 5,
                 posSaleTimestamp, webOrderId);
 
-        // Direct deduction was attempted
+        // Direct deduction was attempted; no web reservation found so NO_CONFLICT returned
         verify(stockRepo).decrementStockDirect(variantId, locationId, 5);
+        assertThat(result.outcome()).isEqualTo(com.walmal.inventory.application.ConflictOutcome.NO_CONFLICT);
     }
 
     @Test
@@ -372,7 +373,7 @@ class InventoryReservationServiceImplTest {
         when(reservationRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(movementRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        service.resolveConflict(posSaleId, variantId, locationId, 5,
+        var result = service.resolveConflict(posSaleId, variantId, locationId, 5,
                 Instant.now(), webOrderId);
 
         // Should have released with BUFFER_EXHAUSTED
@@ -381,5 +382,7 @@ class InventoryReservationServiceImplTest {
         InventoryReservationReleasedEvent evt =
                 (InventoryReservationReleasedEvent) eventCaptor.getValue();
         assertThat(evt.getConflictReason()).isEqualTo(ConflictReason.BUFFER_EXHAUSTED);
+        assertThat(result.outcome()).isEqualTo(com.walmal.inventory.application.ConflictOutcome.BUFFER_EXHAUSTED);
+        assertThat(result.cancelledOrderId()).isEqualTo(webOrderId);
     }
 }

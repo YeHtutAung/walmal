@@ -24,6 +24,10 @@
         <module>walmal-auth</module>
         <module>walmal-product</module>
         <module>walmal-inventory</module>
+        <module>walmal-order</module>
+        <module>walmal-pos</module>
+        <module>walmal-warehouse</module>
+        <module>walmal-notification</module>
         <module>walmal-app</module>
     </modules>
 
@@ -59,6 +63,26 @@
             <dependency>
                 <groupId>com.walmal</groupId>
                 <artifactId>walmal-inventory</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.walmal</groupId>
+                <artifactId>walmal-order</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.walmal</groupId>
+                <artifactId>walmal-pos</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.walmal</groupId>
+                <artifactId>walmal-warehouse</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.walmal</groupId>
+                <artifactId>walmal-notification</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

@@ -6,6 +6,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+// ConflictResolutionResult and ConflictOutcome are in the same package — no import needed
+
 /**
  * Cross-module service interface — consumed by the Order module.
  *
@@ -78,10 +80,16 @@ public interface InventoryReservationService {
      * <p>Algorithm:
      * <ol>
      *   <li>If webOrderId is not null and posSaleTimestamp is before the web reservation
-     *       createdAt → POS wins: release web reservation with POS_PRIORITY, deduct from stock.</li>
-     *   <li>Otherwise attempt direct stock deduction at locationId.</li>
-     *   <li>If primary location insufficient → try buffer locations.</li>
-     *   <li>If buffer exhausted → release web reservation with BUFFER_EXHAUSTED.</li>
+     *       createdAt → POS wins: release web reservation with POS_PRIORITY, deduct from stock.
+     *       Returns {@link ConflictOutcome#POS_PRIORITY}.</li>
+     *   <li>Otherwise attempt direct stock deduction at locationId.
+     *       Returns {@link ConflictOutcome#NO_CONFLICT} on success.</li>
+     *   <li>If primary location insufficient → try buffer locations.
+     *       Returns {@link ConflictOutcome#NO_CONFLICT} on buffer success.</li>
+     *   <li>If buffer exhausted and webOrderId present → release web reservation with
+     *       BUFFER_EXHAUSTED. Returns {@link ConflictOutcome#BUFFER_EXHAUSTED}.</li>
+     *   <li>If buffer exhausted and no webOrderId → stock debt accepted.
+     *       Returns {@link ConflictOutcome#STOCK_UNAVAILABLE}.</li>
      * </ol>
      * Writes audit_log before any destructive stock mutation.
      * Publishes inventory.reservation.released if a web reservation is cancelled.</p>
@@ -91,8 +99,10 @@ public interface InventoryReservationService {
      * @param locationId       the POS store's inventory location
      * @param quantity         units sold offline
      * @param posSaleTimestamp when the POS sale was recorded (offline device clock)
-     * @param webOrderId       the conflicting web order UUID (null if no conflict)
+     * @param webOrderId       the conflicting web order UUID — pass null for MVP (internal lookup used)
+     * @return {@link ConflictResolutionResult} describing what happened; POS uses this to
+     *         set sync_status and choose which event to publish
      */
-    void resolveConflict(UUID posSaleId, UUID variantId, UUID locationId,
-                         int quantity, Instant posSaleTimestamp, UUID webOrderId);
+    ConflictResolutionResult resolveConflict(UUID posSaleId, UUID variantId, UUID locationId,
+                                             int quantity, Instant posSaleTimestamp, UUID webOrderId);
 }
