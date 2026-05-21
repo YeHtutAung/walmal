@@ -80,7 +80,7 @@ class WarehouseIntegrationTest {
     @Autowired JdbcTemplate jdbcTemplate;
 
     private static final UUID SEEDED_ORDER_ID =
-            UUID.fromString("o0000000-0000-0000-0000-000000000001");
+            UUID.fromString("c0000000-0000-0000-0000-000000000001");
     private static final UUID SEEDED_USER_ID =
             UUID.fromString("a0000000-0000-0000-0000-000000000001");
 

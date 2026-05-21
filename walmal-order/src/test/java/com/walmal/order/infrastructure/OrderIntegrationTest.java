@@ -124,7 +124,7 @@ class OrderIntegrationTest {
         // Payment gateway is stubbed to always succeed, so we test cancel via
         // direct repository manipulation to get a PENDING state
         // For integration, we use the seeded PENDING order from V5 migration
-        UUID seededOrderId = UUID.fromString("o0000000-0000-0000-0000-000000000001");
+        UUID seededOrderId = UUID.fromString("c0000000-0000-0000-0000-000000000001");
         UUID seededUserId = UUID.fromString("a0000000-0000-0000-0000-000000000001");
 
         orderCreationService.cancelOrder(seededOrderId, seededUserId);

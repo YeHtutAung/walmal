@@ -228,7 +228,7 @@ CREATE INDEX idx_ord_items_variant
 -- =============================================================================
 INSERT INTO order_orders (id, user_id, status, currency, total_amount, shipping_address, payment_status)
 VALUES (
-    'o0000000-0000-0000-0000-000000000001',
+    'c0000000-0000-0000-0000-000000000001',
     'a0000000-0000-0000-0000-000000000001',  -- seeded admin user from V2
     'PENDING',
     'USD',

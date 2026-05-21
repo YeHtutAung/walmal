@@ -331,8 +331,8 @@ CREATE INDEX idx_inv_movements_created
 -- =============================================================================
 INSERT INTO inventory_locations (id, name, external_reference_id, is_buffer_location, is_active)
 VALUES
-    ('L0000000-0000-0000-0000-000000000001', 'Main Warehouse',    NULL, FALSE, TRUE),
-    ('L0000000-0000-0000-0000-000000000002', 'Buffer Stock - Main', NULL, TRUE,  TRUE);
+    ('a0000000-0000-0000-0000-000000000001', 'Main Warehouse',    NULL, FALSE, TRUE),
+    ('a0000000-0000-0000-0000-000000000002', 'Buffer Stock - Main', NULL, TRUE,  TRUE);
 
 
 -- =============================================================================

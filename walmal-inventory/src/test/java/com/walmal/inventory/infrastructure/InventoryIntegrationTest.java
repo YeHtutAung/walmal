@@ -85,9 +85,9 @@ class InventoryIntegrationTest {
 
     // Seed location IDs from V4 migration
     private static final UUID MAIN_WAREHOUSE_ID =
-            UUID.fromString("L0000000-0000-0000-0000-000000000001");
+            UUID.fromString("a0000000-0000-0000-0000-000000000001");
     private static final UUID BUFFER_LOCATION_ID =
-            UUID.fromString("L0000000-0000-0000-0000-000000000002");
+            UUID.fromString("a0000000-0000-0000-0000-000000000002");
 
     private UUID variantId;
 

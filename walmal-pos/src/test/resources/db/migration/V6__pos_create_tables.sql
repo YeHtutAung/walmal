@@ -370,15 +370,15 @@ CREATE INDEX idx_pos_sync_status
 --   register terminals through the POS Terminal API instead.
 --
 -- Seed: one ACTIVE POS terminal linked to the Main Warehouse inventory location.
---   location_id 'L0000000-0000-0000-0000-000000000001' is the 'Main Warehouse'
+--   location_id 'a0000000-0000-0000-0000-000000000001' is the 'Main Warehouse'
 --   row seeded in V4__inventory_create_tables.sql. This UUID is used here as a
 --   cross-module reference (no FK constraint) to demonstrate the pattern.
 -- =============================================================================
 INSERT INTO pos_terminals (id, name, location_id, status)
 VALUES (
-    'T0000000-0000-0000-0000-000000000001',
+    'b0000000-0000-0000-0000-000000000001',
     'Main Store Terminal 1',
-    'L0000000-0000-0000-0000-000000000001',
+    'a0000000-0000-0000-0000-000000000001',
     'ACTIVE'
 );
 

@@ -100,7 +100,7 @@ class PosIntegrationTest {
     @Autowired JdbcTemplate jdbcTemplate;
 
     private static final UUID VARIANT_ID = UUID.randomUUID();
-    private static final UUID LOCATION_ID = UUID.fromString("L0000000-0000-0000-0000-000000000001");
+    private static final UUID LOCATION_ID = UUID.fromString("a0000000-0000-0000-0000-000000000001");
 
     // ── Scenario 1: online sale persisted ─────────────────────────────────────
 

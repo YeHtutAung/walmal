@@ -59,7 +59,7 @@ class PosSyncItemProcessorIntegrationTest {
     void should_persistPendingQueueRow_and_transitionToProcessed_not_delete() {
         // Create a terminal
         PosTerminal terminal = new PosTerminal("Queue Test Terminal",
-                UUID.fromString("L0000000-0000-0000-0000-000000000001"));
+                UUID.fromString("a0000000-0000-0000-0000-000000000001"));
         terminal = posTerminalRepository.save(terminal);
 
         // Create a queue row
@@ -87,7 +87,7 @@ class PosSyncItemProcessorIntegrationTest {
     @DisplayName("should_persistFailedQueueRow_when_markFailed_called_not_delete")
     void should_persistFailedQueueRow_when_markFailed_called_not_delete() {
         PosTerminal terminal = new PosTerminal("Failed Queue Terminal",
-                UUID.fromString("L0000000-0000-0000-0000-000000000001"));
+                UUID.fromString("a0000000-0000-0000-0000-000000000001"));
         terminal = posTerminalRepository.save(terminal);
 
         PosSyncQueue queueRow = new PosSyncQueue(terminal, "{\"localId\":\"test-fail\"}");
@@ -109,7 +109,7 @@ class PosSyncItemProcessorIntegrationTest {
     @DisplayName("should_findPendingQueueRows_by_terminal_and_status")
     void should_findPendingQueueRows_by_terminal_and_status() {
         PosTerminal terminal = new PosTerminal("Status Query Terminal",
-                UUID.fromString("L0000000-0000-0000-0000-000000000001"));
+                UUID.fromString("a0000000-0000-0000-0000-000000000001"));
         terminal = posTerminalRepository.save(terminal);
 
         // Two PENDING rows

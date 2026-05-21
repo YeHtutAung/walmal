@@ -45,7 +45,14 @@ public class AuthSecurityConfig {
 
     private static final String[] PUBLIC_GET_PATHS = {
             "/actuator/health",
+            "/actuator/info",
+            "/actuator/metrics",
+            "/actuator/metrics/**",
+            "/actuator/prometheus",
+            "/v3/api-docs",
             "/v3/api-docs/**",
+            "/api-docs",
+            "/api-docs/**",
             "/swagger-ui/**",
             "/swagger-ui.html"
     };
@@ -76,6 +83,8 @@ public class AuthSecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, PUBLIC_POST_PATHS).permitAll()
                         .requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS).permitAll()
+                        .requestMatchers("/api-docs", "/api-docs/**",
+                                "/actuator/prometheus", "/actuator/metrics", "/actuator/metrics/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/users/{id}/deactivate")
                                 .hasRole("ADMIN")
                         .anyRequest().authenticated())

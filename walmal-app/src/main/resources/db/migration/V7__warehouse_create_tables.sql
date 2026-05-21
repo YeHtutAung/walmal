@@ -111,7 +111,7 @@ CREATE TABLE warehouse_shipments (
 INSERT INTO warehouse_fulfillments (id, order_id, user_id, status, shipping_address, version, created_at, updated_at)
 VALUES (
     'f0000000-0000-0000-0000-000000000001',
-    'o0000000-0000-0000-0000-000000000001',
+    'c0000000-0000-0000-0000-000000000001',
     'a0000000-0000-0000-0000-000000000001',
     'PENDING',
     '{"line1":"1 Main St","line2":null,"city":"Springfield","country":"US","postalCode":"12345"}',
@@ -122,7 +122,7 @@ VALUES (
 
 INSERT INTO warehouse_fulfillment_lines (id, fulfillment_id, variant_id, location_id, sku_snapshot, quantity_requested, quantity_picked, created_at)
 VALUES (
-    'fl000000-0000-0000-0000-000000000001',
+    'd0000000-0000-0000-0000-000000000001',
     'f0000000-0000-0000-0000-000000000001',
     gen_random_uuid(),
     gen_random_uuid(),
