@@ -56,6 +56,16 @@ public class RedisCacheService implements CacheService {
     }
 
     @Override
+    public long increment(String key, Duration ttlOnCreate) {
+        Long value = redisTemplate.opsForValue().increment(key);
+        long result = value != null ? value : 1L;
+        if (result == 1L) {
+            redisTemplate.expire(key, ttlOnCreate);
+        }
+        return result;
+    }
+
+    @Override
     public void evict(String key) {
         redisTemplate.delete(key);
     }

@@ -17,13 +17,17 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.Optional;
 
 /**
  * Sliding window rate limiter using CacheService (Redis-backed).
  * Runs after Spring Security so SecurityContext is available.
  *
  * <p>Limits: 100 req/min per authenticated user, 20 req/min per IP for unauthenticated.</p>
+ *
+ * <p>X-Forwarded-For is trusted only when {@code trustProxy=true} (set via
+ * {@code WALMAL_TRUST_PROXY=true}). walmal requires a reverse proxy (Nginx/Caddy) that
+ * sets X-Forwarded-For before enabling this flag. Without a trusted proxy, accepting
+ * X-Forwarded-For allows any client to spoof their IP and bypass rate limits.</p>
  */
 public class RateLimitFilter extends OncePerRequestFilter {
 
@@ -36,10 +40,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private final CacheService cacheService;
     private final ObjectMapper objectMapper;
+    private final boolean trustProxy;
 
-    public RateLimitFilter(CacheService cacheService, ObjectMapper objectMapper) {
+    public RateLimitFilter(CacheService cacheService, ObjectMapper objectMapper, boolean trustProxy) {
         this.cacheService = cacheService;
         this.objectMapper = objectMapper;
+        this.trustProxy = trustProxy;
     }
 
     @Override
@@ -70,16 +76,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
         long windowKey = System.currentTimeMillis() / 60000;
         String cacheKey = "ratelimit:" + identity + ":" + windowKey;
 
-        Optional<Integer> currentCount = cacheService.get(cacheKey, Integer.class);
-        int count = currentCount.orElse(0);
+        long count = cacheService.increment(cacheKey, CACHE_TTL);
 
-        if (count >= limit) {
+        if (count > limit) {
             log.warn("Rate limit exceeded for identity={} count={} limit={}", identity, count, limit);
             writeRateLimitResponse(response);
             return;
         }
 
-        cacheService.put(cacheKey, count + 1, CACHE_TTL);
         filterChain.doFilter(request, response);
     }
 
@@ -91,9 +95,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private String resolveClientIp(HttpServletRequest request) {
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isBlank()) {
-            return xForwardedFor.split(",")[0].trim();
+        if (trustProxy) {
+            String xForwardedFor = request.getHeader("X-Forwarded-For");
+            if (xForwardedFor != null && !xForwardedFor.isBlank()) {
+                return xForwardedFor.split(",")[0].trim();
+            }
+            log.warn("WALMAL_TRUST_PROXY=true but X-Forwarded-For header is absent. "
+                    + "Ensure a reverse proxy (Nginx/Caddy) is configured to set X-Forwarded-For. "
+                    + "Falling back to getRemoteAddr().");
         }
         return request.getRemoteAddr();
     }

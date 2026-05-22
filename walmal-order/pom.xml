@@ -132,6 +132,9 @@
                          Run integration tests explicitly with: mvn test -Dgroups=integration
                          Override default with: mvn test -DexcludedGroups= -->
                     <excludedGroups>${excludedGroups}</excludedGroups>
+                    <environmentVariables>
+                        <DOCKER_HOST>${env.DOCKER_HOST}</DOCKER_HOST>
+                    </environmentVariables>
                 </configuration>
             </plugin>
         </plugins>

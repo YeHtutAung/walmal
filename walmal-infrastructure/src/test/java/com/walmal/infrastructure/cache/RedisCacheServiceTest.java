@@ -57,5 +57,25 @@ class RedisCacheServiceTest {
         verify(valueOps).set(eq("key"), anyString(), eq(Duration.ofMinutes(5)));
     }
 
+    @Test
+    void should_incrementAndSetTtl_when_keyIsNew() {
+        when(valueOps.increment("rate:key")).thenReturn(1L);
+
+        long result = cacheService.increment("rate:key", Duration.ofSeconds(90));
+
+        assertThat(result).isEqualTo(1L);
+        verify(redisTemplate).expire("rate:key", Duration.ofSeconds(90));
+    }
+
+    @Test
+    void should_incrementWithoutResettingTtl_when_keyAlreadyExists() {
+        when(valueOps.increment("rate:key")).thenReturn(5L);
+
+        long result = cacheService.increment("rate:key", Duration.ofSeconds(90));
+
+        assertThat(result).isEqualTo(5L);
+        verify(redisTemplate, never()).expire(anyString(), any(Duration.class));
+    }
+
     record TestDto(String name) {}
 }

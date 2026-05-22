@@ -3,7 +3,7 @@ package com.walmal.order.domain;
 /**
  * Value object representing a delivery address snapshot.
  *
- * <p>Stored as JSONB on {@link Order} via {@link com.walmal.order.infrastructure.ShippingAddressConverter}.
+ * <p>Stored as JSONB on {@link Order} via {@code @JdbcTypeCode(SqlTypes.JSON)}.
  * Being a record, it is immutable after construction — the address is fixed at the time the
  * order is placed and never updated even if the customer later edits their address book.</p>
  *

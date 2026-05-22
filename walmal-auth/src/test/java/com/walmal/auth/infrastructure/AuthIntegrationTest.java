@@ -206,5 +206,12 @@ class AuthIntegrationTest {
         @Override public void evictByPrefix(String prefix) {
             store.keySet().removeIf(k -> k.startsWith(prefix));
         }
+
+        @Override
+        public long increment(String key, Duration ttlOnCreate) {
+            long next = ((Number) store.getOrDefault(key, 0L)).longValue() + 1L;
+            store.put(key, next);
+            return next;
+        }
     }
 }

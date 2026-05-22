@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.walmal.common.cache.CacheService;
 import com.walmal.gateway.filter.RateLimitFilter;
 import com.walmal.gateway.filter.RequestLoggingFilter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,9 +27,11 @@ public class GatewayFilterConfig {
 
     @Bean
     public FilterRegistrationBean<RateLimitFilter> rateLimitFilterRegistration(
-            CacheService cacheService, ObjectMapper objectMapper) {
+            CacheService cacheService,
+            ObjectMapper objectMapper,
+            @Value("${WALMAL_TRUST_PROXY:false}") boolean trustProxy) {
         FilterRegistrationBean<RateLimitFilter> registration = new FilterRegistrationBean<>();
-        registration.setFilter(new RateLimitFilter(cacheService, objectMapper));
+        registration.setFilter(new RateLimitFilter(cacheService, objectMapper, trustProxy));
         registration.setOrder(-90);
         registration.addUrlPatterns("/*");
         registration.setName("rateLimitFilter");

@@ -19,7 +19,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -29,6 +28,7 @@ import static org.mockito.Mockito.*;
 class RateLimitFilterTest {
 
     private RateLimitFilter filter;
+    private RateLimitFilter filterWithProxy;
 
     @Mock
     private CacheService cacheService;
@@ -43,7 +43,8 @@ class RateLimitFilterTest {
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
-        filter = new RateLimitFilter(cacheService, objectMapper);
+        filter = new RateLimitFilter(cacheService, objectMapper, false);
+        filterWithProxy = new RateLimitFilter(cacheService, objectMapper, true);
         request = new MockHttpServletRequest("GET", "/api/v1/products");
         request.setRemoteAddr("192.168.1.1");
         response = new MockHttpServletResponse();
@@ -55,30 +56,42 @@ class RateLimitFilterTest {
         SecurityContextHolder.clearContext();
     }
 
+    // ── Fix 3: atomic increment ───────────────────────────────────────────────
+
     @Test
-    void should_allowRequest_when_underLimit() throws ServletException, IOException {
-        when(cacheService.get(anyString(), eq(Integer.class))).thenReturn(Optional.of(5));
+    void should_useAtomicIncrement_not_getOrPut() throws ServletException, IOException {
+        when(cacheService.increment(anyString(), eq(Duration.ofSeconds(90)))).thenReturn(1L);
 
         filter.doFilterInternal(request, response, filterChain);
 
-        verify(filterChain).doFilter(request, response);
-        verify(cacheService).put(anyString(), eq(6), eq(Duration.ofSeconds(90)));
+        verify(cacheService).increment(anyString(), eq(Duration.ofSeconds(90)));
+        verify(cacheService, never()).get(anyString(), any());
+        verify(cacheService, never()).put(anyString(), any(), any());
     }
 
     @Test
-    void should_allowRequest_when_noExistingCount() throws ServletException, IOException {
-        when(cacheService.get(anyString(), eq(Integer.class))).thenReturn(Optional.empty());
+    void should_allowRequest_when_underUnauthenticatedLimit() throws ServletException, IOException {
+        when(cacheService.increment(anyString(), eq(Duration.ofSeconds(90)))).thenReturn(5L);
 
         filter.doFilterInternal(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);
-        verify(cacheService).put(anyString(), eq(1), eq(Duration.ofSeconds(90)));
+        assertThat(response.getStatus()).isNotEqualTo(429);
+    }
+
+    @Test
+    void should_allowRequest_when_firstRequest() throws ServletException, IOException {
+        when(cacheService.increment(anyString(), eq(Duration.ofSeconds(90)))).thenReturn(1L);
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
     }
 
     @Test
     void should_blockRequest_when_unauthenticatedLimitExceeded() throws ServletException, IOException {
-        // Unauthenticated limit is 20
-        when(cacheService.get(anyString(), eq(Integer.class))).thenReturn(Optional.of(20));
+        // Unauthenticated limit is 20 — count of 21 means exceeded
+        when(cacheService.increment(anyString(), eq(Duration.ofSeconds(90)))).thenReturn(21L);
 
         filter.doFilterInternal(request, response, filterChain);
 
@@ -94,16 +107,15 @@ class RateLimitFilterTest {
                 new UsernamePasswordAuthenticationToken("user-42", null, List.of());
         SecurityContextHolder.getContext().setAuthentication(auth);
 
-        // Count 50 is under the authenticated limit of 100
-        when(cacheService.get(anyString(), eq(Integer.class))).thenReturn(Optional.of(50));
+        // 50 is well under the authenticated limit of 100
+        when(cacheService.increment(anyString(), eq(Duration.ofSeconds(90)))).thenReturn(50L);
 
         filter.doFilterInternal(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);
 
-        // Verify the key contains the userId, not IP
         ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
-        verify(cacheService).put(keyCaptor.capture(), eq(51), eq(Duration.ofSeconds(90)));
+        verify(cacheService).increment(keyCaptor.capture(), eq(Duration.ofSeconds(90)));
         assertThat(keyCaptor.getValue()).contains("user-42");
         assertThat(keyCaptor.getValue()).doesNotContain("ip:");
     }
@@ -114,7 +126,8 @@ class RateLimitFilterTest {
                 new UsernamePasswordAuthenticationToken("user-42", null, List.of());
         SecurityContextHolder.getContext().setAuthentication(auth);
 
-        when(cacheService.get(anyString(), eq(Integer.class))).thenReturn(Optional.of(100));
+        // Authenticated limit is 100 — count of 101 means exceeded
+        when(cacheService.increment(anyString(), eq(Duration.ofSeconds(90)))).thenReturn(101L);
 
         filter.doFilterInternal(request, response, filterChain);
 
@@ -122,17 +135,46 @@ class RateLimitFilterTest {
         assertThat(response.getStatus()).isEqualTo(429);
     }
 
+    // ── Fix 2: proxy trust ────────────────────────────────────────────────────
+
     @Test
-    void should_useIpFromXForwardedFor_when_headerPresent() throws ServletException, IOException {
+    void should_useRemoteAddr_when_proxyNotTrusted_evenIfXFFPresent() throws ServletException, IOException {
         request.addHeader("X-Forwarded-For", "10.0.0.1, 192.168.1.1");
-        when(cacheService.get(anyString(), eq(Integer.class))).thenReturn(Optional.empty());
+        when(cacheService.increment(anyString(), any())).thenReturn(1L);
 
         filter.doFilterInternal(request, response, filterChain);
 
         ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
-        verify(cacheService).put(keyCaptor.capture(), eq(1), eq(Duration.ofSeconds(90)));
+        verify(cacheService).increment(keyCaptor.capture(), any());
+        assertThat(keyCaptor.getValue()).contains("ip:192.168.1.1");
+        assertThat(keyCaptor.getValue()).doesNotContain("10.0.0.1");
+    }
+
+    @Test
+    void should_useXFFIp_when_proxyTrustedAndHeaderPresent() throws ServletException, IOException {
+        request.addHeader("X-Forwarded-For", "10.0.0.1, 192.168.1.1");
+        when(cacheService.increment(anyString(), any())).thenReturn(1L);
+
+        filterWithProxy.doFilterInternal(request, response, filterChain);
+
+        ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(cacheService).increment(keyCaptor.capture(), any());
         assertThat(keyCaptor.getValue()).contains("ip:10.0.0.1");
     }
+
+    @Test
+    void should_fallbackToRemoteAddr_when_proxyTrustedButXFFMissing() throws ServletException, IOException {
+        // No X-Forwarded-For header set
+        when(cacheService.increment(anyString(), any())).thenReturn(1L);
+
+        filterWithProxy.doFilterInternal(request, response, filterChain);
+
+        ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(cacheService).increment(keyCaptor.capture(), any());
+        assertThat(keyCaptor.getValue()).contains("ip:192.168.1.1");
+    }
+
+    // ── shouldNotFilter ───────────────────────────────────────────────────────
 
     @Test
     void should_excludeActuatorPaths_when_shouldNotFilterCalled() {

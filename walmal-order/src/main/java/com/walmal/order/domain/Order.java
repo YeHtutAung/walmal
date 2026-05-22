@@ -2,8 +2,9 @@ package com.walmal.order.domain;
 
 import com.walmal.common.exception.BusinessRuleException;
 import com.walmal.common.payment.PaymentStatus;
-import com.walmal.order.infrastructure.ShippingAddressConverter;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -28,7 +29,8 @@ import java.util.UUID;
  *
  * <p>{@code version} supports JPA optimistic locking. Never set or modify manually in application code.</p>
  *
- * <p>{@code shippingAddress} is stored as JSONB via {@link ShippingAddressConverter}.
+ * <p>{@code shippingAddress} is stored as JSONB via {@code @JdbcTypeCode(SqlTypes.JSON)}.
+ * Hibernate 6 handles the JSON serialisation natively; no AttributeConverter is needed.
  * The snapshot is fixed at order creation time.</p>
  */
 @Entity
@@ -53,7 +55,7 @@ public class Order {
     @Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount;
 
-    @Convert(converter = ShippingAddressConverter.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "shipping_address", nullable = false, columnDefinition = "jsonb")
     private ShippingAddress shippingAddress;
 

@@ -64,6 +64,19 @@ services:
       timeout: 5s
       retries: 5
 
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: walmal-mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8025 2>/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
   app:
     build: .
     container_name: walmal-app
@@ -81,6 +94,8 @@ services:
       WALMAL_MINIO_ACCESS_KEY: walmal
       WALMAL_MINIO_SECRET_KEY: walmal123
       WALMAL_JWT_SECRET: walmal-docker-secret-key-change-in-production-minimum-256-bits
+      SPRING_MAIL_HOST: mailhog
+      SPRING_MAIL_PORT: "1025"
     depends_on:
       postgres:
         condition: service_healthy

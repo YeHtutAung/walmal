@@ -13,7 +13,7 @@ COPY walmal-pos/pom.xml walmal-pos/pom.xml
 COPY walmal-warehouse/pom.xml walmal-warehouse/pom.xml
 COPY walmal-notification/pom.xml walmal-notification/pom.xml
 COPY walmal-app/pom.xml walmal-app/pom.xml
-RUN chmod +x mvnw && ./mvnw dependency:go-offline -B
+RUN chmod +x mvnw && sed -i 's/\r//' mvnw && ./mvnw dependency:go-offline -B
 COPY . .
 RUN ./mvnw package -DskipTests -B
 
