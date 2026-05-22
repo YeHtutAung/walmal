@@ -168,6 +168,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-and-push
     if: github.event_name == 'push'
+    continue-on-error: true  # temporary: Trivy post-incident install issue; replace with direct binary install
 
     permissions:
       security-events: write
