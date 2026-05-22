@@ -4,6 +4,7 @@ import com.walmal.auth.api.dto.CreateUserRequest;
 import com.walmal.auth.api.dto.LoginRequest;
 import com.walmal.auth.api.dto.RegisterRequest;
 import com.walmal.auth.api.dto.TokenResponse;
+import com.walmal.auth.api.dto.UpdateUserRequest;
 import com.walmal.auth.api.dto.UserProfileResponse;
 import com.walmal.auth.application.impl.AuthServiceImpl;
 import com.walmal.auth.domain.RefreshTokenRecord;
@@ -25,11 +26,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -322,6 +328,97 @@ class AuthServiceImplTest {
                 new CreateUserRequest("existing", "new@walmal.com", "password123", "STAFF"), "admin"))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("Username already taken");
+    }
+
+    // ── List users ────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should_returnMappedPage_when_listUsersCalledWithNoFilters")
+    void should_returnMappedPage_when_listUsersCalledWithNoFilters() {
+        User user = buildUser(Role.STAFF, "pass1234");
+        when(userRepository.findAll(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(user)));
+
+        Page<UserProfileResponse> page = authService.listUsers(null, null, PageRequest.of(0, 10));
+
+        assertThat(page.getTotalElements()).isEqualTo(1);
+        assertThat(page.getContent().get(0).role()).isEqualTo("STAFF");
+    }
+
+    @Test
+    @DisplayName("should_throwBusinessRuleException_when_listUsersCalledWithInvalidRole")
+    void should_throwBusinessRuleException_when_listUsersCalledWithInvalidRole() {
+        assertThatThrownBy(() -> authService.listUsers("INVALID", null, PageRequest.of(0, 10)))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("Invalid role");
+    }
+
+    // ── Get user ──────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should_returnUserProfile_when_getUserCalledWithKnownId")
+    void should_returnUserProfile_when_getUserCalledWithKnownId() {
+        UUID userId = UUID.randomUUID();
+        User user = buildUser(Role.ADMIN, "pass1234");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        UserProfileResponse response = authService.getUser(userId);
+
+        assertThat(response.role()).isEqualTo("ADMIN");
+        assertThat(response.isActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("should_throwResourceNotFoundException_when_getUserCalledWithUnknownId")
+    void should_throwResourceNotFoundException_when_getUserCalledWithUnknownId() {
+        when(userRepository.findById(any(UUID.class))).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.getUser(UUID.randomUUID()))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ── Update user ───────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should_callAuditBeforeRepositorySave_when_updatingUserRole")
+    void should_callAuditBeforeRepositorySave_when_updatingUserRole() {
+        UUID userId = UUID.randomUUID();
+        User user = buildUser(Role.STAFF, "pass1234");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenReturn(user);
+
+        InOrder order = inOrder(auditService, userRepository);
+
+        authService.updateUser(userId, new UpdateUserRequest("CASHIER", null), "admin");
+
+        order.verify(auditService).log(any(AuditEntry.class));
+        order.verify(userRepository).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("should_throwResourceNotFoundException_when_updateUserCalledWithUnknownId")
+    void should_throwResourceNotFoundException_when_updateUserCalledWithUnknownId() {
+        when(userRepository.findById(any(UUID.class))).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.updateUser(
+                UUID.randomUUID(), new UpdateUserRequest("STAFF", null), "admin"))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        verify(auditService, never()).log(any());
+    }
+
+    @Test
+    @DisplayName("should_throwBusinessRuleException_when_updateUserCalledWithInvalidRole")
+    void should_throwBusinessRuleException_when_updateUserCalledWithInvalidRole() {
+        UUID userId = UUID.randomUUID();
+        User user = buildUser(Role.STAFF, "pass1234");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> authService.updateUser(userId, new UpdateUserRequest("SUPERADMIN", null), "admin"))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("Invalid role");
+
+        verify(auditService, never()).log(any());
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

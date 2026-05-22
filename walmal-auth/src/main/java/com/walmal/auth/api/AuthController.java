@@ -5,6 +5,7 @@ import com.walmal.auth.api.dto.LoginRequest;
 import com.walmal.auth.api.dto.RefreshTokenRequest;
 import com.walmal.auth.api.dto.RegisterRequest;
 import com.walmal.auth.api.dto.TokenResponse;
+import com.walmal.auth.api.dto.UpdateUserRequest;
 import com.walmal.auth.api.dto.UserProfileResponse;
 import com.walmal.auth.application.AuthService;
 import com.walmal.common.auth.AuthenticatedPrincipal;
@@ -14,6 +15,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -21,8 +24,10 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -134,6 +139,66 @@ public class AuthController {
             @AuthenticationPrincipal AuthenticatedPrincipal principal) {
         UserProfileResponse profile = authService.createUser(request, principal.username());
         return ResponseEntity.status(HttpStatus.CREATED).body(profile);
+    }
+
+    // ── List users (admin-only) ───────────────────────────────────────────────
+
+    @Operation(
+            summary = "List users",
+            description = "Returns a paginated list of all users. Optionally filter by role and/or active status. Requires ADMIN role.",
+            security = @SecurityRequirement(name = "bearerAuth"))
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Page of users returned"),
+            @ApiResponse(responseCode = "401", description = "Not authenticated"),
+            @ApiResponse(responseCode = "403", description = "Insufficient role — ADMIN required")
+    })
+    @GetMapping("/users")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Page<UserProfileResponse>> listUsers(
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) Boolean active,
+            Pageable pageable) {
+        return ResponseEntity.ok(authService.listUsers(role, active, pageable));
+    }
+
+    // ── Get user by ID (admin-only) ───────────────────────────────────────────
+
+    @Operation(
+            summary = "Get user by ID",
+            description = "Returns the profile of a single user. Requires ADMIN role.",
+            security = @SecurityRequirement(name = "bearerAuth"))
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "User profile returned"),
+            @ApiResponse(responseCode = "401", description = "Not authenticated"),
+            @ApiResponse(responseCode = "403", description = "Insufficient role — ADMIN required"),
+            @ApiResponse(responseCode = "404", description = "User not found")
+    })
+    @GetMapping("/users/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserProfileResponse> getUser(@PathVariable UUID id) {
+        return ResponseEntity.ok(authService.getUser(id));
+    }
+
+    // ── Update user (admin-only) ──────────────────────────────────────────────
+
+    @Operation(
+            summary = "Update user",
+            description = "Updates a user's role and/or active status. Writes audit log before the update. Requires ADMIN role.",
+            security = @SecurityRequirement(name = "bearerAuth"))
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "User updated"),
+            @ApiResponse(responseCode = "400", description = "Invalid role value"),
+            @ApiResponse(responseCode = "401", description = "Not authenticated"),
+            @ApiResponse(responseCode = "403", description = "Insufficient role — ADMIN required"),
+            @ApiResponse(responseCode = "404", description = "User not found")
+    })
+    @PutMapping("/users/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserProfileResponse> updateUser(
+            @PathVariable UUID id,
+            @RequestBody UpdateUserRequest request,
+            @AuthenticationPrincipal AuthenticatedPrincipal principal) {
+        return ResponseEntity.ok(authService.updateUser(id, request, principal.username()));
     }
 
     // ── Deactivate user ───────────────────────────────────────────────────────

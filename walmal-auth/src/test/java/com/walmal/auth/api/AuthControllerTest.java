@@ -6,6 +6,7 @@ import com.walmal.auth.api.dto.LoginRequest;
 import com.walmal.auth.api.dto.RefreshTokenRequest;
 import com.walmal.auth.api.dto.RegisterRequest;
 import com.walmal.auth.api.dto.TokenResponse;
+import com.walmal.auth.api.dto.UpdateUserRequest;
 import com.walmal.auth.api.dto.UserProfileResponse;
 import com.walmal.auth.application.AuthService;
 import com.walmal.auth.application.TokenValidationService;
@@ -29,6 +30,12 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+
+import java.util.List;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
@@ -37,6 +44,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -255,6 +263,122 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "SUPERADMIN"))))
+                .andExpect(status().isBadRequest());
+    }
+
+    // ── List users (admin-only) ───────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should_return200WithPage_when_adminListsUsers")
+    void should_return200WithPage_when_adminListsUsers() throws Exception {
+        AuthenticatedPrincipal admin = new AuthenticatedPrincipal(UUID.randomUUID(), "admin", "ADMIN");
+        Page<UserProfileResponse> page = new PageImpl<>(List.of(
+                new UserProfileResponse(UUID.randomUUID(), "staff1", "staff1@test.com", "STAFF", true)));
+        when(authService.listUsers(any(), any(), any(Pageable.class))).thenReturn(page);
+
+        mockMvc.perform(get("/api/v1/auth/users").with(authentication(buildAuth(admin))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content[0].username").value("staff1"));
+    }
+
+    @Test
+    @DisplayName("should_return403_when_nonAdminListsUsers")
+    void should_return403_when_nonAdminListsUsers() throws Exception {
+        AuthenticatedPrincipal staff = new AuthenticatedPrincipal(UUID.randomUUID(), "staff1", "STAFF");
+
+        mockMvc.perform(get("/api/v1/auth/users").with(authentication(buildAuth(staff))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("should_return401_when_unauthenticatedListsUsers")
+    void should_return401_when_unauthenticatedListsUsers() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/users"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // ── Get user by ID (admin-only) ───────────────────────────────────────────
+
+    @Test
+    @DisplayName("should_return200WithProfile_when_adminGetsUserById")
+    void should_return200WithProfile_when_adminGetsUserById() throws Exception {
+        UUID userId = UUID.randomUUID();
+        AuthenticatedPrincipal admin = new AuthenticatedPrincipal(UUID.randomUUID(), "admin", "ADMIN");
+        UserProfileResponse profile = new UserProfileResponse(userId, "staff1", "staff1@test.com", "STAFF", true);
+        when(authService.getUser(userId)).thenReturn(profile);
+
+        mockMvc.perform(get("/api/v1/auth/users/{id}", userId).with(authentication(buildAuth(admin))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("staff1"))
+                .andExpect(jsonPath("$.role").value("STAFF"));
+    }
+
+    @Test
+    @DisplayName("should_return404_when_adminGetsUnknownUserId")
+    void should_return404_when_adminGetsUnknownUserId() throws Exception {
+        UUID userId = UUID.randomUUID();
+        AuthenticatedPrincipal admin = new AuthenticatedPrincipal(UUID.randomUUID(), "admin", "ADMIN");
+        when(authService.getUser(userId))
+                .thenThrow(new com.walmal.common.exception.ResourceNotFoundException("User", userId));
+
+        mockMvc.perform(get("/api/v1/auth/users/{id}", userId).with(authentication(buildAuth(admin))))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("should_return403_when_nonAdminGetsUserById")
+    void should_return403_when_nonAdminGetsUserById() throws Exception {
+        AuthenticatedPrincipal staff = new AuthenticatedPrincipal(UUID.randomUUID(), "staff1", "STAFF");
+
+        mockMvc.perform(get("/api/v1/auth/users/{id}", UUID.randomUUID())
+                        .with(authentication(buildAuth(staff))))
+                .andExpect(status().isForbidden());
+    }
+
+    // ── Update user (admin-only) ──────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should_return200WithUpdatedProfile_when_adminUpdatesUser")
+    void should_return200WithUpdatedProfile_when_adminUpdatesUser() throws Exception {
+        UUID userId = UUID.randomUUID();
+        AuthenticatedPrincipal admin = new AuthenticatedPrincipal(UUID.randomUUID(), "admin", "ADMIN");
+        UserProfileResponse updated = new UserProfileResponse(userId, "staff1", "staff1@test.com", "CASHIER", true);
+        when(authService.updateUser(any(UUID.class), any(UpdateUserRequest.class), anyString()))
+                .thenReturn(updated);
+
+        mockMvc.perform(put("/api/v1/auth/users/{id}", userId)
+                        .with(authentication(buildAuth(admin)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new UpdateUserRequest("CASHIER", null))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("CASHIER"));
+    }
+
+    @Test
+    @DisplayName("should_return403_when_nonAdminUpdatesUser")
+    void should_return403_when_nonAdminUpdatesUser() throws Exception {
+        AuthenticatedPrincipal staff = new AuthenticatedPrincipal(UUID.randomUUID(), "staff1", "STAFF");
+
+        mockMvc.perform(put("/api/v1/auth/users/{id}", UUID.randomUUID())
+                        .with(authentication(buildAuth(staff)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new UpdateUserRequest("CASHIER", null))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("should_return400_when_adminUpdatesUserWithInvalidRole")
+    void should_return400_when_adminUpdatesUserWithInvalidRole() throws Exception {
+        UUID userId = UUID.randomUUID();
+        AuthenticatedPrincipal admin = new AuthenticatedPrincipal(UUID.randomUUID(), "admin", "ADMIN");
+        when(authService.updateUser(any(UUID.class), any(UpdateUserRequest.class), anyString()))
+                .thenThrow(new com.walmal.common.exception.BusinessRuleException("Invalid role: SUPERADMIN"));
+
+        mockMvc.perform(put("/api/v1/auth/users/{id}", userId)
+                        .with(authentication(buildAuth(admin)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new UpdateUserRequest("SUPERADMIN", null))))
                 .andExpect(status().isBadRequest());
     }
 

@@ -2,6 +2,8 @@ package com.walmal.auth.infrastructure;
 
 import com.walmal.auth.domain.Role;
 import com.walmal.auth.domain.User;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -23,4 +25,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     boolean existsByEmail(String email);
 
     List<User> findByRoleAndIsActiveTrue(Role role);
+
+    Page<User> findByRole(Role role, Pageable pageable);
+
+    Page<User> findByIsActive(boolean isActive, Pageable pageable);
+
+    Page<User> findByRoleAndIsActive(Role role, boolean isActive, Pageable pageable);
 }

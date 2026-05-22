@@ -4,7 +4,10 @@ import com.walmal.auth.api.dto.CreateUserRequest;
 import com.walmal.auth.api.dto.LoginRequest;
 import com.walmal.auth.api.dto.RegisterRequest;
 import com.walmal.auth.api.dto.TokenResponse;
+import com.walmal.auth.api.dto.UpdateUserRequest;
 import com.walmal.auth.api.dto.UserProfileResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.UUID;
 
@@ -70,4 +73,33 @@ public interface AuthService {
      *         or role is invalid
      */
     UserProfileResponse createUser(CreateUserRequest request, String performedBy);
+
+    /**
+     * Admin-only: returns a paginated list of all users, optionally filtered by role and/or
+     * active status.
+     *
+     * @param role   optional role filter (e.g. "ADMIN"); null means no role filter
+     * @param active optional active-status filter; null means no status filter
+     * @throws com.walmal.common.exception.BusinessRuleException if role is not a valid Role value
+     */
+    Page<UserProfileResponse> listUsers(String role, Boolean active, Pageable pageable);
+
+    /**
+     * Admin-only: returns the profile of a single user.
+     *
+     * @throws com.walmal.common.exception.ResourceNotFoundException if userId not found
+     */
+    UserProfileResponse getUser(UUID userId);
+
+    /**
+     * Admin-only: updates a user's role and/or active status.
+     * Writes an audit log entry BEFORE the repository save.
+     *
+     * @param userId      the target user
+     * @param request     fields to update (nullable fields are left unchanged)
+     * @param performedBy the admin username authorising the change
+     * @throws com.walmal.common.exception.ResourceNotFoundException if userId not found
+     * @throws com.walmal.common.exception.BusinessRuleException if role value is invalid
+     */
+    UserProfileResponse updateUser(UUID userId, UpdateUserRequest request, String performedBy);
 }

@@ -1,17 +1,25 @@
 package com.walmal.auth.infrastructure;
 
+import com.walmal.auth.api.dto.CreateUserRequest;
 import com.walmal.auth.api.dto.LoginRequest;
 import com.walmal.auth.api.dto.RegisterRequest;
 import com.walmal.auth.api.dto.TokenResponse;
+import com.walmal.auth.api.dto.UpdateUserRequest;
+import com.walmal.auth.api.dto.UserProfileResponse;
 import com.walmal.auth.application.AuthService;
 import com.walmal.auth.application.TokenValidationService;
 import com.walmal.auth.config.JwtProperties;
 import com.walmal.auth.domain.User;
+import com.walmal.common.audit.AuditAction;
+import com.walmal.common.audit.AuditEntry;
 import com.walmal.common.audit.AuditService;
 import com.walmal.common.cache.CacheService;
 import com.walmal.common.event.DomainEvent;
 import com.walmal.common.event.DomainEventPublisher;
+import com.walmal.common.exception.BusinessRuleException;
+import com.walmal.common.exception.ResourceNotFoundException;
 import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -24,6 +32,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -32,12 +42,15 @@ import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Integration test for the auth module.
@@ -106,6 +119,14 @@ class AuthIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private CapturingAuditService auditService;
+
+    @BeforeEach
+    void clearAuditCapture() {
+        auditService.clear();
+    }
+
     // ── Migration ─────────────────────────────────────────────────────────────
 
     @Test
@@ -160,6 +181,117 @@ class AuthIntegrationTest {
         assertThat(tokenValidationService.extractRole(loginResponse.accessToken())).isEqualTo("CUSTOMER");
     }
 
+    // ── List users ────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should_returnPagedUserList_when_noFiltersApplied")
+    void should_returnPagedUserList_when_noFiltersApplied() {
+        Page<UserProfileResponse> page = authService.listUsers(null, null, PageRequest.of(0, 10));
+        assertThat(page).isNotNull();
+        assertThat(page.getTotalElements()).isGreaterThan(0);
+        assertThat(page.getContent()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("should_filterByRole_when_roleParamProvided")
+    void should_filterByRole_when_roleParamProvided() {
+        Page<UserProfileResponse> page = authService.listUsers("ADMIN", null, PageRequest.of(0, 10));
+        assertThat(page.getContent()).allMatch(u -> u.role().equals("ADMIN"));
+    }
+
+    @Test
+    @DisplayName("should_filterByActiveStatus_when_activeParamProvided")
+    void should_filterByActiveStatus_when_activeParamProvided() {
+        Page<UserProfileResponse> page = authService.listUsers(null, true, PageRequest.of(0, 10));
+        assertThat(page.getContent()).allMatch(UserProfileResponse::isActive);
+    }
+
+    // ── Get user by ID ────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should_returnUserProfile_when_validIdGiven")
+    void should_returnUserProfile_when_validIdGiven() {
+        User admin = userRepository.findByUsername("admin").orElseThrow();
+        UserProfileResponse response = authService.getUser(admin.getId());
+        assertThat(response.username()).isEqualTo("admin");
+        assertThat(response.role()).isEqualTo("ADMIN");
+        assertThat(response.isActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("should_throwResourceNotFoundException_when_getUserCalledWithUnknownId")
+    void should_throwResourceNotFoundException_when_getUserCalledWithUnknownId() {
+        assertThatThrownBy(() -> authService.getUser(UUID.randomUUID()))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ── Update user ───────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should_updateRole_when_adminChangesUserRole")
+    void should_updateRole_when_adminChangesUserRole() {
+        String u = UUID.randomUUID().toString().substring(0, 8);
+        UserProfileResponse created = authService.createUser(
+                new CreateUserRequest("u_" + u, u + "@test.com", "pass1234", "STAFF"), "admin");
+
+        UserProfileResponse updated = authService.updateUser(
+                created.id(), new UpdateUserRequest("CASHIER", null), "admin");
+
+        assertThat(updated.role()).isEqualTo("CASHIER");
+        assertThat(updated.isActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("should_deactivateUser_when_adminSetsActiveFalse")
+    void should_deactivateUser_when_adminSetsActiveFalse() {
+        String u = UUID.randomUUID().toString().substring(0, 8);
+        UserProfileResponse created = authService.createUser(
+                new CreateUserRequest("u_" + u, u + "@test.com", "pass1234", "STAFF"), "admin");
+
+        UserProfileResponse updated = authService.updateUser(
+                created.id(), new UpdateUserRequest(null, false), "admin");
+
+        assertThat(updated.isActive()).isFalse();
+        assertThat(updated.role()).isEqualTo("STAFF");
+    }
+
+    @Test
+    @DisplayName("should_writeAuditEntryWithCorrectValues_when_userRoleUpdated")
+    void should_writeAuditEntryWithCorrectValues_when_userRoleUpdated() {
+        String u = UUID.randomUUID().toString().substring(0, 8);
+        UserProfileResponse created = authService.createUser(
+                new CreateUserRequest("u_" + u, u + "@test.com", "pass1234", "STAFF"), "admin");
+        auditService.clear();
+
+        authService.updateUser(created.id(), new UpdateUserRequest("CASHIER", null), "admin");
+
+        assertThat(auditService.entries()).hasSize(1);
+        AuditEntry entry = auditService.entries().get(0);
+        assertThat(entry.tableName()).isEqualTo("auth_users");
+        assertThat(entry.recordId()).isEqualTo(created.id());
+        assertThat(entry.action()).isEqualTo(AuditAction.UPDATE);
+        assertThat(entry.oldValue()).contains("STAFF");
+        assertThat(entry.newValue()).contains("CASHIER");
+        assertThat(entry.performedBy()).isEqualTo("admin");
+    }
+
+    @Test
+    @DisplayName("should_throwResourceNotFoundException_when_updateCalledWithUnknownId")
+    void should_throwResourceNotFoundException_when_updateCalledWithUnknownId() {
+        assertThatThrownBy(() -> authService.updateUser(
+                UUID.randomUUID(), new UpdateUserRequest("STAFF", null), "admin"))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("should_throwBusinessRuleException_when_invalidRoleProvided")
+    void should_throwBusinessRuleException_when_invalidRoleProvided() {
+        User admin = userRepository.findByUsername("admin").orElseThrow();
+        assertThatThrownBy(() -> authService.updateUser(
+                admin.getId(), new UpdateUserRequest("INVALID_ROLE", null), "admin"))
+                .isInstanceOf(BusinessRuleException.class);
+    }
+
     // ── Test configuration ────────────────────────────────────────────────────
 
     @Configuration
@@ -185,8 +317,25 @@ class AuthIntegrationTest {
         }
 
         @Bean
-        public AuditService auditService() {
-            return entry -> { /* no-op */ };
+        public CapturingAuditService auditService() {
+            return new CapturingAuditService();
+        }
+    }
+
+    static class CapturingAuditService implements AuditService {
+        private final List<AuditEntry> captured = new ArrayList<>();
+
+        @Override
+        public void log(AuditEntry entry) {
+            captured.add(entry);
+        }
+
+        public List<AuditEntry> entries() {
+            return List.copyOf(captured);
+        }
+
+        public void clear() {
+            captured.clear();
         }
     }
 

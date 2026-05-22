@@ -56,5 +56,6 @@ public class User extends BaseEntity {
 
     // ── Setters (limited — only mutable fields) ───────────────────────────────
     public void setActive(boolean active) { isActive = active; }
+    public void setRole(Role role) { this.role = role; }
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
 }

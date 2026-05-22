@@ -4,8 +4,11 @@ import com.walmal.auth.api.dto.CreateUserRequest;
 import com.walmal.auth.api.dto.LoginRequest;
 import com.walmal.auth.api.dto.RegisterRequest;
 import com.walmal.auth.api.dto.TokenResponse;
+import com.walmal.auth.api.dto.UpdateUserRequest;
 import com.walmal.auth.api.dto.UserProfileResponse;
 import com.walmal.auth.application.AuthService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import com.walmal.auth.domain.RefreshTokenRecord;
 import com.walmal.auth.domain.Role;
 import com.walmal.auth.domain.User;
@@ -222,12 +225,7 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
 
-        return new UserProfileResponse(
-                user.getId(),
-                user.getUsername(),
-                user.getEmail(),
-                user.getRole().name(),
-                user.isActive());
+        return toProfile(user);
     }
 
     // ── Create user (admin-only) ───────────────────────────────────────────────
@@ -242,12 +240,7 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessRuleException("Email already registered: " + request.email());
         }
 
-        Role role;
-        try {
-            role = Role.valueOf(request.role().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new BusinessRuleException("Invalid role: " + request.role());
-        }
+        Role role = parseRole(request.role());
 
         String hash = passwordEncoder.encode(request.password());
         User user = new User(request.username(), request.email(), hash, role);
@@ -259,15 +252,100 @@ public class AuthServiceImpl implements AuthService {
                 new UserRegisteredEvent(user.getId(), user.getUsername(), user.getEmail(), role.name()),
                 "auth.user.registered");
 
-        return new UserProfileResponse(
-                user.getId(),
-                user.getUsername(),
-                user.getEmail(),
-                user.getRole().name(),
-                user.isActive());
+        return toProfile(user);
+    }
+
+    // ── List users ────────────────────────────────────────────────────────────
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<UserProfileResponse> listUsers(String roleFilter, Boolean active, Pageable pageable) {
+        Page<User> users;
+        if (roleFilter != null && active != null) {
+            users = userRepository.findByRoleAndIsActive(parseRole(roleFilter), active, pageable);
+        } else if (roleFilter != null) {
+            users = userRepository.findByRole(parseRole(roleFilter), pageable);
+        } else if (active != null) {
+            users = userRepository.findByIsActive(active, pageable);
+        } else {
+            users = userRepository.findAll(pageable);
+        }
+        return users.map(this::toProfile);
+    }
+
+    // ── Get user by ID ────────────────────────────────────────────────────────
+
+    @Override
+    @Transactional(readOnly = true)
+    public UserProfileResponse getUser(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        return toProfile(user);
+    }
+
+    // ── Update user ───────────────────────────────────────────────────────────
+
+    @Override
+    @Transactional
+    public UserProfileResponse updateUser(UUID userId, UpdateUserRequest request, String performedBy) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+
+        Role newRole = request.role() != null ? parseRole(request.role()) : null;
+
+        // Build audit old/new value strings before any mutation
+        StringBuilder oldVal = new StringBuilder();
+        StringBuilder newVal = new StringBuilder();
+        if (newRole != null) {
+            oldVal.append("role=").append(user.getRole().name());
+            newVal.append("role=").append(newRole.name());
+        }
+        if (request.active() != null) {
+            if (!oldVal.isEmpty()) { oldVal.append(", "); newVal.append(", "); }
+            oldVal.append("is_active=").append(user.isActive());
+            newVal.append("is_active=").append(request.active());
+        }
+
+        if (oldVal.isEmpty()) {
+            return toProfile(user);
+        }
+
+        // AUDIT FIRST — architecture rule: write audit_log before destructive operation
+        auditService.log(new AuditEntry(
+                "auth_users",
+                userId,
+                AuditAction.UPDATE,
+                oldVal.toString(),
+                newVal.toString(),
+                performedBy));
+
+        if (newRole != null) {
+            user.setRole(newRole);
+        }
+        if (request.active() != null) {
+            user.setActive(request.active());
+        }
+
+        user = userRepository.save(user);
+        log.info("User updated by {}: {} ({}→{})", performedBy, userId, oldVal, newVal);
+        return toProfile(user);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
+
+    private UserProfileResponse toProfile(User user) {
+        return new UserProfileResponse(
+                user.getId(), user.getUsername(), user.getEmail(),
+                user.getRole().name(), user.isActive());
+    }
+
+    private Role parseRole(String roleStr) {
+        try {
+            return Role.valueOf(roleStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BusinessRuleException("Invalid role: " + roleStr);
+        }
+    }
 
     /**
      * Issues a new access + refresh token pair and stores the refresh record in Redis.
