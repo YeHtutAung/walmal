@@ -254,6 +254,7 @@ class InventoryIntegrationTest {
                 @Override public <T> void put(String key, T value, Duration ttl) {}
                 @Override public void evict(String key) {}
                 @Override public void evictByPrefix(String prefix) {}
+                @Override public long increment(String key, Duration ttlOnCreate) { return 1L; }
             };
         }
 

@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-21\" mvn test -pl walmal-app -am)",
+      "Bash(git stash *)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Java\\\\jdk-21\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; Set-Location \"C:\\\\Rex\\\\14-Claude-workspace\\\\walmal\"; .\\\\mvnw test -pl walmal-inventory -am -Dgroups='!integration' --no-transfer-progress 2>&1)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Java\\\\jdk-21\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; cd C:\\\\Rex\\\\14-Claude-workspace\\\\walmal; .\\\\mvnw test -pl walmal-inventory -am -Dgroups='!integration' --no-transfer-progress 2>&1 | Select-String -Pattern \"BUILD|ERROR|Tests run|FAILED|WARNING\" | Select-Object -Last 40)",
+      "PowerShell(mvn compile *)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Java\\\\jdk-21\"; cd \"C:\\\\Rex\\\\14-Claude-workspace\\\\walmal\"; .\\\\mvnw.cmd test -pl walmal-order --also-make -Dtest=\"OrderIntegrationTest#should_createAndConfirmOrder_when_happyPath\" -DexcludedGroups=\"\" -Dsurefire.failIfNoSpecifiedTests=false -B 2>&1 | Select-String \"Tests run|FAIL|ERROR|PSQLException|jsonb|varchar|BUILD\" | Select-Object -Last 20)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Java\\\\jdk-21\"; cd \"C:\\\\Rex\\\\14-Claude-workspace\\\\walmal\"; .\\\\mvnw.cmd test \"-pl\" \"walmal-order\" \"--also-make\" \"-Dtest=OrderIntegrationTest#should_createAndConfirmOrder_when_happyPath\" \"-DexcludedGroups=\" \"-Dsurefire.failIfNoSpecifiedTests=false\" \"-B\" 2>&1 | Select-String \"Tests run|FAIL|ERROR|PSQLException|jsonb|varchar|BUILD\" | Select-Object -Last 20)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Java\\\\jdk-21\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; Set-Location \"C:\\\\Rex\\\\14-Claude-workspace\\\\walmal\"; .\\\\mvnw.cmd test-compile -pl walmal-auth --also-make --no-transfer-progress 2>&1 | Select-String \"ERROR|error:|cannot find\" | Select-Object -First 20)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Java\\\\jdk-21\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; Set-Location \"C:\\\\Rex\\\\14-Claude-workspace\\\\walmal\"; .\\\\mvnw.cmd test -pl walmal-auth --also-make --no-transfer-progress -Dgroups=\"!integration\" 2>&1 | Select-String \"Tests run|BUILD|ERROR|FAIL\" | Select-Object -Last 15)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Java\\\\jdk-21\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; Set-Location \"C:\\\\Rex\\\\14-Claude-workspace\\\\walmal\"; .\\\\mvnw.cmd test --no-transfer-progress 2>&1 | Select-String \"Tests run: \\\\d+\" | Where-Object { $_ -match \"^\\\\[INFO\\\\] Tests run:\" } | ForEach-Object { if \\($_ -match \"Tests run: \\(\\\\d+\\)\"\\) { [int]$matches[1] } } | Measure-Object -Sum | Select-Object -ExpandProperty Sum)"
+    ]
+  }
+}
