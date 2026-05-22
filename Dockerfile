@@ -15,7 +15,7 @@ COPY walmal-notification/pom.xml walmal-notification/pom.xml
 COPY walmal-app/pom.xml walmal-app/pom.xml
 RUN chmod +x mvnw && sed -i 's/\r//' mvnw && ./mvnw dependency:go-offline -B
 COPY . .
-RUN ./mvnw package -DskipTests -B
+RUN chmod +x mvnw && sed -i 's/\r//' mvnw && ./mvnw package -DskipTests -B
 
 # Stage 2: Runtime
 FROM eclipse-temurin:21-jre

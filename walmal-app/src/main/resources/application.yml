@@ -57,7 +57,7 @@ walmal:
   cors:
     # Override with WALMAL_CORS_ALLOWED_ORIGINS=https://app.example.com in production.
     # WALMAL_TRUST_PROXY=true must also be set when a reverse proxy (Nginx/Caddy) sets X-Forwarded-For.
-    allowed-origins: "${WALMAL_CORS_ALLOWED_ORIGINS:http://localhost:3000}"
+    allowed-origins: "${WALMAL_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177}"
 
 management:
   endpoints:
