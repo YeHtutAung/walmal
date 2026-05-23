@@ -22,8 +22,8 @@ import java.util.UUID;
  *
  * <p>Role requirements:
  * <ul>
- *   <li>GET endpoints: WAREHOUSE_OPERATOR or ADMIN</li>
- *   <li>State-change endpoints: WAREHOUSE_OPERATOR</li>
+ *   <li>GET endpoints: WAREHOUSE_STAFF or ADMIN</li>
+ *   <li>State-change endpoints: WAREHOUSE_STAFF</li>
  * </ul>
  * </p>
  */
@@ -39,7 +39,7 @@ public class FulfillmentController {
     }
 
     @GetMapping("/{orderId}")
-    @PreAuthorize("hasAnyRole('WAREHOUSE_OPERATOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF', 'ADMIN')")
     @Operation(summary = "Get fulfillment by order ID",
                description = "Returns full fulfillment detail including all lines, shipment info, and current order status.")
     @ApiResponses({
@@ -54,7 +54,7 @@ public class FulfillmentController {
 
     @PostMapping("/{orderId}/advance")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('WAREHOUSE_OPERATOR')")
+    @PreAuthorize("hasRole('WAREHOUSE_STAFF')")
     @Operation(summary = "Advance fulfillment status",
                description = "Valid targets: PICKING (from PENDING), PACKED (from PICKING). Use /ship for PACKED→SHIPPED.")
     @ApiResponses({
@@ -71,7 +71,7 @@ public class FulfillmentController {
 
     @PostMapping("/{orderId}/ship")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('WAREHOUSE_OPERATOR')")
+    @PreAuthorize("hasRole('WAREHOUSE_STAFF')")
     @Operation(summary = "Ship the fulfillment (PACKED → SHIPPED)",
                description = "Finalises the shipment. Writes any WRITE_OFF adjustments for discrepant lines " +
                              "(audit log written before each adjustment). Marks order as FULFILLED. " +
@@ -90,7 +90,7 @@ public class FulfillmentController {
 
     @PutMapping("/lines/{lineId}/picked")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('WAREHOUSE_OPERATOR')")
+    @PreAuthorize("hasRole('WAREHOUSE_STAFF')")
     @Operation(summary = "Record picked quantity for a fulfillment line",
                description = "Updates quantity_picked. Only valid while fulfillment is in PICKING status.")
     @ApiResponses({
@@ -107,7 +107,7 @@ public class FulfillmentController {
 
     @PostMapping("/{orderId}/cancel")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('WAREHOUSE_OPERATOR')")
+    @PreAuthorize("hasRole('WAREHOUSE_STAFF')")
     @Operation(summary = "Cancel a fulfillment",
                description = "Only valid from PENDING or PICKING status. PACKED and SHIPPED are non-cancellable.")
     @ApiResponses({

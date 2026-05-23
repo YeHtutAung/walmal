@@ -292,6 +292,69 @@ class AuthIntegrationTest {
                 .isInstanceOf(BusinessRuleException.class);
     }
 
+    // ── New roles from V11 ────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should_loginAndEmitCorrectRoleClaim_when_warehouseManagerLogsIn")
+    void should_loginAndEmitCorrectRoleClaim_when_warehouseManagerLogsIn() {
+        TokenResponse response = authService.login(new LoginRequest("warehouse_manager", "wm123456"));
+
+        assertThat(response).isNotNull();
+        assertThat(tokenValidationService.isValid(response.accessToken())).isTrue();
+        assertThat(tokenValidationService.extractUsername(response.accessToken())).isEqualTo("warehouse_manager");
+        assertThat(tokenValidationService.extractRole(response.accessToken())).isEqualTo("WAREHOUSE_MANAGER");
+    }
+
+    @Test
+    @DisplayName("should_loginAndEmitCorrectRoleClaim_when_warehouseStaffLogsIn")
+    void should_loginAndEmitCorrectRoleClaim_when_warehouseStaffLogsIn() {
+        TokenResponse response = authService.login(new LoginRequest("warehouse_staff", "ws123456"));
+
+        assertThat(response).isNotNull();
+        assertThat(tokenValidationService.isValid(response.accessToken())).isTrue();
+        assertThat(tokenValidationService.extractUsername(response.accessToken())).isEqualTo("warehouse_staff");
+        assertThat(tokenValidationService.extractRole(response.accessToken())).isEqualTo("WAREHOUSE_STAFF");
+    }
+
+    @Test
+    @DisplayName("should_loginAndEmitCorrectRoleClaim_when_posOperatorLogsIn")
+    void should_loginAndEmitCorrectRoleClaim_when_posOperatorLogsIn() {
+        TokenResponse response = authService.login(new LoginRequest("pos_operator", "pos123456"));
+
+        assertThat(response).isNotNull();
+        assertThat(tokenValidationService.isValid(response.accessToken())).isTrue();
+        assertThat(tokenValidationService.extractUsername(response.accessToken())).isEqualTo("pos_operator");
+        assertThat(tokenValidationService.extractRole(response.accessToken())).isEqualTo("POS_OPERATOR");
+    }
+
+    @Test
+    @DisplayName("should_acceptWarehouseManagerRole_when_createUserRequestSubmitted")
+    void should_acceptWarehouseManagerRole_when_createUserRequestSubmitted() {
+        String u = UUID.randomUUID().toString().substring(0, 8);
+        UserProfileResponse created = authService.createUser(
+                new CreateUserRequest("wm_" + u, u + "@test.com", "pass1234", "WAREHOUSE_MANAGER"), "admin");
+
+        assertThat(created.role()).isEqualTo("WAREHOUSE_MANAGER");
+    }
+
+    @Test
+    @DisplayName("should_acceptPosOperatorRole_when_createUserRequestSubmitted")
+    void should_acceptPosOperatorRole_when_createUserRequestSubmitted() {
+        String u = UUID.randomUUID().toString().substring(0, 8);
+        UserProfileResponse created = authService.createUser(
+                new CreateUserRequest("pos_" + u, u + "@test.com", "pass1234", "POS_OPERATOR"), "admin");
+
+        assertThat(created.role()).isEqualTo("POS_OPERATOR");
+    }
+
+    @Test
+    @DisplayName("should_filterByWarehouseManagerRole_when_roleFilterApplied")
+    void should_filterByWarehouseManagerRole_when_roleFilterApplied() {
+        Page<UserProfileResponse> page = authService.listUsers("WAREHOUSE_MANAGER", null, PageRequest.of(0, 10));
+        assertThat(page.getContent()).isNotEmpty();
+        assertThat(page.getContent()).allMatch(u -> u.role().equals("WAREHOUSE_MANAGER"));
+    }
+
     // ── Test configuration ────────────────────────────────────────────────────
 
     @Configuration

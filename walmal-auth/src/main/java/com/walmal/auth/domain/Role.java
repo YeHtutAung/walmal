@@ -8,5 +8,8 @@ public enum Role {
     ADMIN,
     STAFF,
     CASHIER,
-    CUSTOMER
+    CUSTOMER,
+    WAREHOUSE_MANAGER,
+    WAREHOUSE_STAFF,
+    POS_OPERATOR
 }
