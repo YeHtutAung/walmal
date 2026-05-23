@@ -3,6 +3,7 @@ package com.walmal.order.domain;
 import com.walmal.common.exception.BusinessRuleException;
 import com.walmal.common.payment.PaymentStatus;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Formula;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -75,6 +76,9 @@ public class Order {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    @Formula("(SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = id)")
+    private int itemCount;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<OrderItem> items = new ArrayList<>();
@@ -151,6 +155,7 @@ public class Order {
     // ── Getters ───────────────────────────────────────────────────────────────
 
     public UUID getId() { return id; }
+    public int getItemCount() { return itemCount; }
     public UUID getUserId() { return userId; }
     public OrderStatus getStatus() { return status; }
     public String getCurrency() { return currency; }

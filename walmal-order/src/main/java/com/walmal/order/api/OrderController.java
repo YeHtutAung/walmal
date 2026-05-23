@@ -4,9 +4,12 @@ import com.walmal.common.auth.AuthenticatedPrincipal;
 import com.walmal.common.exception.BusinessRuleException;
 import com.walmal.common.model.ApiResponse;
 import com.walmal.order.api.dto.CreateOrderRequest;
+import com.walmal.order.api.dto.UpdateOrderStatusRequest;
+import com.walmal.order.application.OrderAdminService;
 import com.walmal.order.application.OrderCreationService;
 import com.walmal.order.application.OrderFulfillmentService;
 import com.walmal.order.application.OrderQueryService;
+import com.walmal.order.application.dto.OrderAdminSummaryDto;
 import com.walmal.order.application.dto.OrderDetailDto;
 import com.walmal.order.application.dto.OrderLineItem;
 import com.walmal.order.application.dto.OrderSummaryDto;
@@ -40,13 +43,16 @@ public class OrderController {
     private final OrderCreationService orderCreationService;
     private final OrderQueryService orderQueryService;
     private final OrderFulfillmentService orderFulfillmentService;
+    private final OrderAdminService orderAdminService;
 
     public OrderController(OrderCreationService orderCreationService,
                             OrderQueryService orderQueryService,
-                            OrderFulfillmentService orderFulfillmentService) {
+                            OrderFulfillmentService orderFulfillmentService,
+                            OrderAdminService orderAdminService) {
         this.orderCreationService = orderCreationService;
         this.orderQueryService = orderQueryService;
         this.orderFulfillmentService = orderFulfillmentService;
+        this.orderAdminService = orderAdminService;
     }
 
     @PostMapping
@@ -155,6 +161,28 @@ public class OrderController {
     })
     public void fulfillOrder(@PathVariable UUID orderId) {
         orderFulfillmentService.markFulfilled(orderId);
+    }
+
+    // ── Admin endpoints ───────────────────────────────────────────────────────
+
+    @GetMapping("/admin")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    @Operation(summary = "List all orders (admin)",
+               description = "Returns a paginated list of all orders across all users. Admin and Staff only.")
+    public ApiResponse<Page<OrderAdminSummaryDto>> listAllOrders(
+            @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
+        return ApiResponse.ok(orderAdminService.listAllOrders(pageable));
+    }
+
+    @PatchMapping("/{orderId}/status")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    @Operation(summary = "Update order status (admin)",
+               description = "Manually transitions an order to a new status. " +
+                             "Valid: PENDING→CONFIRMED, PENDING→CANCELLED, CONFIRMED→FULFILLED.")
+    public void updateOrderStatus(@PathVariable UUID orderId,
+                                   @Valid @RequestBody UpdateOrderStatusRequest request) {
+        orderAdminService.updateStatus(orderId, request.status(), request.reason());
     }
 
     // ── Ownership verification ──────────────────────────────────────────────
