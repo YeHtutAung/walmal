@@ -2,13 +2,20 @@ package com.walmal.pos.api;
 
 import com.walmal.common.model.ApiResponse;
 import com.walmal.pos.api.dto.OfflineSyncRequest;
+import com.walmal.pos.application.PosAdminService;
 import com.walmal.pos.application.PosSyncService;
+import com.walmal.pos.application.dto.PosSyncConflictDto;
 import com.walmal.pos.application.dto.SyncResultDto;
 import com.walmal.pos.application.dto.SyncStatusDto;
+import com.walmal.pos.domain.SyncStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.lang.Nullable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -33,9 +40,31 @@ import java.util.UUID;
 public class PosSyncController {
 
     private final PosSyncService posSyncService;
+    private final PosAdminService posAdminService;
 
-    public PosSyncController(PosSyncService posSyncService) {
+    public PosSyncController(PosSyncService posSyncService, PosAdminService posAdminService) {
         this.posSyncService = posSyncService;
+        this.posAdminService = posAdminService;
+    }
+
+    @GetMapping("/conflicts")
+    @PreAuthorize("hasAnyRole('ADMIN', 'POS_OPERATOR')")
+    @Operation(summary = "List offline sync conflicts",
+               description = "Returns paginated offline POS sales with non-N_A sync status " +
+                             "(PENDING, SYNCED, CONFLICT_RESOLVED, FAILED). " +
+                             "Filter by terminalId and/or status.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "OK"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Forbidden")
+    })
+    public ApiResponse<Page<PosSyncConflictDto>> listSyncConflicts(
+            @RequestParam(required = false) @Nullable UUID terminalId,
+            @RequestParam(required = false) @Nullable String status,
+            @PageableDefault(size = 20, sort = "soldAt") Pageable pageable) {
+        SyncStatus syncStatus = (status != null && !status.isBlank())
+                ? SyncStatus.valueOf(status.toUpperCase()) : null;
+        return ApiResponse.ok(posAdminService.listSyncConflicts(terminalId, syncStatus, pageable));
     }
 
     @PostMapping

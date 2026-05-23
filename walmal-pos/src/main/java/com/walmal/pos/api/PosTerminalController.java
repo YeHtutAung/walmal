@@ -2,12 +2,16 @@ package com.walmal.pos.api;
 
 import com.walmal.common.model.ApiResponse;
 import com.walmal.pos.api.dto.RegisterTerminalRequest;
+import com.walmal.pos.application.PosAdminService;
 import com.walmal.pos.application.PosTerminalService;
 import com.walmal.pos.application.dto.PosTerminalDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -34,9 +38,26 @@ import java.util.UUID;
 public class PosTerminalController {
 
     private final PosTerminalService posTerminalService;
+    private final PosAdminService posAdminService;
 
-    public PosTerminalController(PosTerminalService posTerminalService) {
+    public PosTerminalController(PosTerminalService posTerminalService,
+                                  PosAdminService posAdminService) {
         this.posTerminalService = posTerminalService;
+        this.posAdminService = posAdminService;
+    }
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'POS_OPERATOR')")
+    @Operation(summary = "List all POS terminals",
+               description = "Returns a paginated list of all registered terminals.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "OK"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Forbidden")
+    })
+    public ApiResponse<Page<PosTerminalDto>> listTerminals(
+            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+        return ApiResponse.ok(posAdminService.listAllTerminals(pageable));
     }
 
     @PostMapping
