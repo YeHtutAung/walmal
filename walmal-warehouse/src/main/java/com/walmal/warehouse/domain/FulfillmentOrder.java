@@ -2,6 +2,7 @@ package com.walmal.warehouse.domain;
 
 import com.walmal.common.exception.BusinessRuleException;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Formula;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -54,6 +55,9 @@ public class FulfillmentOrder {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    @Formula("(SELECT COUNT(*) FROM warehouse_fulfillment_lines wfl WHERE wfl.fulfillment_id = id)")
+    private int lineCount;
 
     @OneToMany(mappedBy = "fulfillmentOrder", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<FulfillmentLine> lines = new ArrayList<>();
@@ -120,6 +124,7 @@ public class FulfillmentOrder {
     // ── Getters ───────────────────────────────────────────────────────────────
 
     public UUID getId() { return id; }
+    public int getLineCount() { return lineCount; }
     public UUID getOrderId() { return orderId; }
     public UUID getUserId() { return userId; }
     public FulfillmentStatus getStatus() { return status; }
