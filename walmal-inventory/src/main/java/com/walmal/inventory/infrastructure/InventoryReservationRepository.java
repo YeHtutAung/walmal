@@ -2,6 +2,8 @@ package com.walmal.inventory.infrastructure;
 
 import com.walmal.inventory.domain.InventoryReservation;
 import com.walmal.inventory.domain.ReservationStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -23,6 +25,9 @@ public interface InventoryReservationRepository extends JpaRepository<InventoryR
 
     Optional<InventoryReservation> findByOrderIdAndVariantIdAndStatus(
             UUID orderId, UUID variantId, ReservationStatus status);
+
+    /** Paginated list filtered by status. */
+    Page<InventoryReservation> findByStatus(ReservationStatus status, Pageable pageable);
 
     /**
      * Finds all PENDING reservations whose expiry time has passed.

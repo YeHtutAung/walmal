@@ -3,13 +3,20 @@ package com.walmal.inventory.api;
 import com.walmal.common.model.ApiResponse;
 import com.walmal.inventory.api.dto.request.PosConflictRequest;
 import com.walmal.inventory.api.dto.request.ReserveStockRequest;
+import com.walmal.inventory.api.dto.response.ReservationResponse;
+import com.walmal.inventory.application.InventoryAdminService;
 import com.walmal.inventory.application.InventoryReservationService;
+import com.walmal.inventory.domain.ReservationStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.Nullable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,9 +36,30 @@ import java.util.stream.Collectors;
 public class InventoryReservationController {
 
     private final InventoryReservationService reservationService;
+    private final InventoryAdminService adminService;
 
-    public InventoryReservationController(InventoryReservationService reservationService) {
+    public InventoryReservationController(InventoryReservationService reservationService,
+                                           InventoryAdminService adminService) {
         this.reservationService = reservationService;
+        this.adminService = adminService;
+    }
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_STAFF')")
+    @Operation(summary = "List reservations (paginated)",
+               description = "Returns reservations optionally filtered by status. Admin/Warehouse roles only.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "OK"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Forbidden")
+    })
+    public ApiResponse<Page<ReservationResponse>> listReservations(
+            @RequestParam(required = false) @Nullable String status,
+            @PageableDefault(size = 20) Pageable pageable) {
+        ReservationStatus statusEnum = (status != null && !status.isBlank())
+                ? ReservationStatus.valueOf(status.toUpperCase())
+                : null;
+        return ApiResponse.ok(adminService.listReservations(statusEnum, pageable));
     }
 
     @PostMapping

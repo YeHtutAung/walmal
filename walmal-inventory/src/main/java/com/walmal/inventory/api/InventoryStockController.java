@@ -3,6 +3,8 @@ package com.walmal.inventory.api;
 import com.walmal.common.model.ApiResponse;
 import com.walmal.inventory.api.dto.response.StockAvailabilityResponse;
 import com.walmal.inventory.api.dto.response.StockLevelResponse;
+import com.walmal.inventory.api.dto.response.StockListItemResponse;
+import com.walmal.inventory.application.InventoryAdminService;
 import com.walmal.inventory.application.InventoryAdjustmentService;
 import com.walmal.inventory.application.InventoryQueryService;
 import com.walmal.inventory.api.dto.request.AdjustStockRequest;
@@ -12,6 +14,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -30,11 +35,28 @@ public class InventoryStockController {
 
     private final InventoryQueryService queryService;
     private final InventoryAdjustmentService adjustmentService;
+    private final InventoryAdminService adminService;
 
     public InventoryStockController(InventoryQueryService queryService,
-                                     InventoryAdjustmentService adjustmentService) {
+                                     InventoryAdjustmentService adjustmentService,
+                                     InventoryAdminService adminService) {
         this.queryService = queryService;
         this.adjustmentService = adjustmentService;
+        this.adminService = adminService;
+    }
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_STAFF')")
+    @Operation(summary = "List all stock levels (paginated)",
+               description = "Returns all stock records with location. Admin/Warehouse roles only.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "OK"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Forbidden")
+    })
+    public ApiResponse<Page<StockListItemResponse>> listAllStock(
+            @PageableDefault(size = 20, sort = "availableQuantity") Pageable pageable) {
+        return ApiResponse.ok(adminService.listAllStock(pageable));
     }
 
     @GetMapping("/{variantId}/{locationId}")

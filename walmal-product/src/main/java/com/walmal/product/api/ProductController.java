@@ -207,6 +207,21 @@ public class ProductController {
         return ResponseEntity.ok(ApiResponse.ok(managementService.listVariants(productId)));
     }
 
+    @Operation(summary = "Get variant by ID",
+            description = "Returns variant summary by variantId. Used by the admin inventory list.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Variant found"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Variant not found")
+    })
+    @GetMapping("/variants/{variantId}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<VariantSummaryDto>> getVariantById(@PathVariable UUID variantId) {
+        return catalogService.findVariantById(variantId)
+                .map(v -> ResponseEntity.ok(ApiResponse.ok(v)))
+                .orElseThrow(() -> new com.walmal.common.exception.ResourceNotFoundException(
+                        "ProductVariant", variantId.toString()));
+    }
+
     @Operation(summary = "Create variant",
             description = "Creates a new variant with initial price. Requires ADMIN or STAFF role.",
             security = @SecurityRequirement(name = "bearerAuth"))

@@ -1,6 +1,8 @@
 package com.walmal.inventory.infrastructure;
 
 import com.walmal.inventory.domain.InventoryStock;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -25,6 +27,10 @@ public interface InventoryStockRepository extends JpaRepository<InventoryStock, 
     List<InventoryStock> findByVariantId(UUID variantId);
 
     List<InventoryStock> findByLocationId(UUID locationId);
+
+    /** Paginated list with location eagerly loaded to avoid N+1. */
+    @Query("SELECT s FROM InventoryStock s JOIN FETCH s.location")
+    Page<InventoryStock> findAllWithLocation(Pageable pageable);
 
     /**
      * POS conflict override: atomically decrements available_quantity using a direct UPDATE
