@@ -10,6 +10,7 @@ import com.walmal.common.exception.ResourceNotFoundException;
 import com.walmal.order.api.dto.CreateOrderRequest;
 import com.walmal.order.api.dto.OrderLineItemRequest;
 import com.walmal.order.api.dto.ShippingAddressRequest;
+import com.walmal.order.application.OrderAdminService;
 import com.walmal.order.application.OrderCreationService;
 import com.walmal.order.application.OrderFulfillmentService;
 import com.walmal.order.application.OrderQueryService;
@@ -64,6 +65,7 @@ class OrderControllerTest {
     @MockitoBean OrderCreationService orderCreationService;
     @MockitoBean OrderQueryService orderQueryService;
     @MockitoBean OrderFulfillmentService orderFulfillmentService;
+    @MockitoBean OrderAdminService orderAdminService;
     @MockitoBean TokenValidationService tokenValidationService;
 
     // ── GET order ────────────────────────────────────────────────────────────

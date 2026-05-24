@@ -4,6 +4,7 @@ import com.walmal.auth.application.TokenValidationService;
 import com.walmal.auth.config.AuthSecurityConfig;
 import com.walmal.auth.config.JwtProperties;
 import com.walmal.common.auth.AuthenticatedPrincipal;
+import com.walmal.notification.application.NotificationAdminService;
 import com.walmal.notification.application.NotificationService;
 import com.walmal.notification.application.dto.NotificationSummaryDto;
 import com.walmal.notification.domain.NotificationStatus;
@@ -45,6 +46,7 @@ class NotificationControllerTest {
     @Autowired MockMvc mockMvc;
 
     @MockitoBean NotificationService notificationService;
+    @MockitoBean NotificationAdminService notificationAdminService;
     @MockitoBean TokenValidationService tokenValidationService;
 
     private static final UUID USER_ID = UUID.randomUUID();

@@ -9,6 +9,7 @@ import com.walmal.common.exception.BusinessRuleException;
 import com.walmal.common.exception.ResourceNotFoundException;
 import com.walmal.inventory.api.dto.request.AdjustStockRequest;
 import com.walmal.inventory.api.dto.response.StockLevelResponse;
+import com.walmal.inventory.application.InventoryAdminService;
 import com.walmal.inventory.application.InventoryAdjustmentService;
 import com.walmal.inventory.application.InventoryQueryService;
 import org.junit.jupiter.api.DisplayName;
@@ -54,6 +55,7 @@ class InventoryControllerTest {
 
     @MockitoBean InventoryQueryService queryService;
     @MockitoBean InventoryAdjustmentService adjustmentService;
+    @MockitoBean InventoryAdminService adminService;
     @MockitoBean TokenValidationService tokenValidationService;
 
     // ── GET stock level ───────────────────────────────────────────────────────
