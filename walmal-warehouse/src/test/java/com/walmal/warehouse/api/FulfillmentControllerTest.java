@@ -58,7 +58,7 @@ class FulfillmentControllerTest {
     private UsernamePasswordAuthenticationToken warehouseAuth() {
         return new UsernamePasswordAuthenticationToken(
                 "operator", "pw",
-                List.of(new SimpleGrantedAuthority("ROLE_WAREHOUSE_OPERATOR")));
+                List.of(new SimpleGrantedAuthority("ROLE_WAREHOUSE_STAFF")));
     }
 
     private UsernamePasswordAuthenticationToken adminAuth() {
