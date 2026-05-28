@@ -12,5 +12,6 @@ public record ProductDetailDto(
         String brand,
         String description,
         String status,
-        String categoryName
+        String categoryName,
+        String primaryImageUrl
 ) {}

@@ -7,6 +7,8 @@ import com.walmal.product.application.dto.ProductSummaryDto;
 import com.walmal.product.domain.Category;
 import com.walmal.product.domain.Product;
 import com.walmal.product.infrastructure.CategoryRepository;
+import com.walmal.product.infrastructure.ProductImageRepository;
+import com.walmal.product.infrastructure.ProductImageStorageAdapter;
 import com.walmal.product.infrastructure.ProductPriceRepository;
 import com.walmal.product.infrastructure.ProductRepository;
 import org.slf4j.Logger;
@@ -44,15 +46,21 @@ public class ProductSearchServiceImpl implements ProductSearchService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final ProductPriceRepository priceRepository;
+    private final ProductImageRepository imageRepository;
+    private final ProductImageStorageAdapter imageStorageAdapter;
     private final CacheService cacheService;
 
     public ProductSearchServiceImpl(ProductRepository productRepository,
                                     CategoryRepository categoryRepository,
                                     ProductPriceRepository priceRepository,
+                                    ProductImageRepository imageRepository,
+                                    ProductImageStorageAdapter imageStorageAdapter,
                                     CacheService cacheService) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.priceRepository = priceRepository;
+        this.imageRepository = imageRepository;
+        this.imageStorageAdapter = imageStorageAdapter;
         this.cacheService = cacheService;
     }
 
@@ -113,12 +121,17 @@ public class ProductSearchServiceImpl implements ProductSearchService {
             }
         }
 
+        String primaryImageUrl = imageRepository
+                .findByProductIdAndPrimaryTrue(p.getId())
+                .map(img -> imageStorageAdapter.getUrl(img.getStorageKey()))
+                .orElse(null);
+
         return new ProductSummaryDto(
                 p.getId(),
                 p.getName(),
                 p.getSlug(),
                 p.getBrand(),
-                null,       // primaryImageUrl: resolved at controller layer if needed
+                primaryImageUrl,
                 lowestPrice,
                 currency
         );

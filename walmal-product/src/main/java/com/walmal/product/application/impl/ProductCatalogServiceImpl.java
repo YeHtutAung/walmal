@@ -8,6 +8,8 @@ import com.walmal.product.application.dto.VariantSummaryDto;
 import com.walmal.product.domain.Product;
 import com.walmal.product.domain.ProductStatus;
 import com.walmal.product.domain.ProductVariant;
+import com.walmal.product.infrastructure.ProductImageRepository;
+import com.walmal.product.infrastructure.ProductImageStorageAdapter;
 import com.walmal.product.infrastructure.ProductRepository;
 import com.walmal.product.infrastructure.ProductVariantRepository;
 import org.slf4j.Logger;
@@ -40,13 +42,19 @@ public class ProductCatalogServiceImpl implements ProductCatalogService {
 
     private final ProductVariantRepository variantRepository;
     private final ProductRepository productRepository;
+    private final ProductImageRepository imageRepository;
+    private final ProductImageStorageAdapter imageStorageAdapter;
     private final CacheService cacheService;
 
     public ProductCatalogServiceImpl(ProductVariantRepository variantRepository,
                                      ProductRepository productRepository,
+                                     ProductImageRepository imageRepository,
+                                     ProductImageStorageAdapter imageStorageAdapter,
                                      CacheService cacheService) {
         this.variantRepository = variantRepository;
         this.productRepository = productRepository;
+        this.imageRepository = imageRepository;
+        this.imageStorageAdapter = imageStorageAdapter;
         this.cacheService = cacheService;
     }
 
@@ -139,6 +147,10 @@ public class ProductCatalogServiceImpl implements ProductCatalogService {
 
     private ProductDetailDto toProductDetailDto(Product p) {
         String categoryName = (p.getCategory() != null) ? p.getCategory().getName() : null;
+        String primaryImageUrl = imageRepository
+                .findByProductIdAndPrimaryTrue(p.getId())
+                .map(img -> imageStorageAdapter.getUrl(img.getStorageKey()))
+                .orElse(null);
         return new ProductDetailDto(
                 p.getId(),
                 p.getName(),
@@ -146,7 +158,8 @@ public class ProductCatalogServiceImpl implements ProductCatalogService {
                 p.getBrand(),
                 p.getDescription(),
                 p.getStatus().name(),
-                categoryName
+                categoryName,
+                primaryImageUrl
         );
     }
 }

@@ -153,12 +153,13 @@ public class ProductImageServiceImpl implements ProductImageService {
 
     private ImageResponse toImageResponse(ProductImage img) {
         UUID variantId = (img.getVariant() != null) ? img.getVariant().getId() : null;
+        String freshUrl = storageAdapter.getUrl(img.getStorageKey());
         return new ImageResponse(
                 img.getId(),
                 img.getProduct().getId(),
                 variantId,
                 img.getStorageKey(),
-                img.getCdnUrl(),
+                freshUrl,
                 img.getAltText(),
                 img.getDisplayOrder(),
                 img.isPrimary(),

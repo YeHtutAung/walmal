@@ -7,6 +7,8 @@ import com.walmal.product.domain.Category;
 import com.walmal.product.domain.Product;
 import com.walmal.product.domain.ProductStatus;
 import com.walmal.product.domain.ProductVariant;
+import com.walmal.product.infrastructure.ProductImageRepository;
+import com.walmal.product.infrastructure.ProductImageStorageAdapter;
 import com.walmal.product.infrastructure.ProductRepository;
 import com.walmal.product.infrastructure.ProductVariantRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +46,8 @@ class ProductCatalogServiceImplTest {
 
     @Mock ProductVariantRepository variantRepository;
     @Mock ProductRepository productRepository;
+    @Mock ProductImageRepository imageRepository;
+    @Mock ProductImageStorageAdapter imageStorageAdapter;
     @Mock CacheService cacheService;
 
     ProductCatalogServiceImpl service;
@@ -53,7 +57,7 @@ class ProductCatalogServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new ProductCatalogServiceImpl(variantRepository, productRepository, cacheService);
+        service = new ProductCatalogServiceImpl(variantRepository, productRepository, imageRepository, imageStorageAdapter, cacheService);
     }
 
     @Test

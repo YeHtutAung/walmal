@@ -113,7 +113,7 @@ class ProductControllerTest {
         UUID productId = UUID.randomUUID();
         ProductDetailDto dto = new ProductDetailDto(
                 productId, "Test Product", "test-product", "TestBrand",
-                "A description", "ACTIVE", "Electronics");
+                "A description", "ACTIVE", "Electronics", null);
 
         when(catalogService.getProductDetails(productId)).thenReturn(dto);
 
@@ -163,7 +163,7 @@ class ProductControllerTest {
                 categoryId, "New Product", "new-product", null, null);
 
         ProductDetailDto created = new ProductDetailDto(
-                UUID.randomUUID(), "New Product", "new-product", null, null, "ACTIVE", "Electronics");
+                UUID.randomUUID(), "New Product", "new-product", null, null, "ACTIVE", "Electronics", null);
 
         when(managementService.createProduct(any(), anyString())).thenReturn(created);
 
@@ -185,7 +185,7 @@ class ProductControllerTest {
                 UUID.randomUUID(), "Staff Product", "staff-product", null, null);
 
         ProductDetailDto created = new ProductDetailDto(
-                UUID.randomUUID(), "Staff Product", "staff-product", null, null, "ACTIVE", "TestCat");
+                UUID.randomUUID(), "Staff Product", "staff-product", null, null, "ACTIVE", "TestCat", null);
 
         when(managementService.createProduct(any(), anyString())).thenReturn(created);
 

@@ -4,19 +4,27 @@ import com.walmal.common.exception.WalmalException;
 import com.walmal.common.storage.FileStorageService;
 import com.walmal.common.storage.StoredFile;
 import io.minio.*;
-import io.minio.http.Method;
+import io.minio.messages.NotificationRecords;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
-import java.util.concurrent.TimeUnit;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 @Service
 public class MinioFileStorageService implements FileStorageService {
 
     private final MinioClient minioClient;
+    private final String publicUrl;
 
-    public MinioFileStorageService(MinioClient minioClient) {
+    public MinioFileStorageService(
+            MinioClient minioClient,
+            @Value("${walmal.minio.public-url}") String publicUrl) {
         this.minioClient = minioClient;
+        this.publicUrl = publicUrl;
     }
 
     @Override
@@ -60,23 +68,40 @@ public class MinioFileStorageService implements FileStorageService {
         }
     }
 
+    /**
+     * Returns a direct public URL for the object.
+     * The bucket must have a public-read policy (set in {@link #ensureBucketExists}).
+     */
     @Override
     public String getPresignedUrl(String bucket, String key) {
-        try {
-            return minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
-                .method(Method.GET)
-                .bucket(bucket)
-                .object(key)
-                .expiry(1, TimeUnit.HOURS)
-                .build());
-        } catch (Exception e) {
-            throw new WalmalException("Failed to generate presigned URL: " + key, e);
-        }
+        String encodedKey = Arrays.stream(key.split("/", -1))
+                .map(seg -> URLEncoder.encode(seg, StandardCharsets.UTF_8).replace("+", "%20"))
+                .collect(Collectors.joining("/"));
+        return publicUrl + "/" + bucket + "/" + encodedKey;
     }
 
     private void ensureBucketExists(String bucket) throws Exception {
         if (!minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucket).build())) {
             minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucket).build());
         }
+        setPublicReadPolicy(bucket);
+    }
+
+    private void setPublicReadPolicy(String bucket) throws Exception {
+        String policy = """
+                {
+                  "Version": "2012-10-17",
+                  "Statement": [{
+                    "Effect": "Allow",
+                    "Principal": {"AWS": ["*"]},
+                    "Action": ["s3:GetObject"],
+                    "Resource": ["arn:aws:s3:::%s/*"]
+                  }]
+                }
+                """.formatted(bucket);
+        minioClient.setBucketPolicy(SetBucketPolicyArgs.builder()
+                .bucket(bucket)
+                .config(policy)
+                .build());
     }
 }

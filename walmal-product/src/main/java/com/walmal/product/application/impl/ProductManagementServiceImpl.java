@@ -308,7 +308,7 @@ public class ProductManagementServiceImpl implements ProductManagementService {
         String categoryName = (p.getCategory() != null) ? p.getCategory().getName() : null;
         return new ProductDetailDto(
                 p.getId(), p.getName(), p.getSlug(), p.getBrand(),
-                p.getDescription(), p.getStatus().name(), categoryName);
+                p.getDescription(), p.getStatus().name(), categoryName, null);
     }
 
     private VariantSummaryDto toVariantSummaryDto(ProductVariant v, Product p) {
