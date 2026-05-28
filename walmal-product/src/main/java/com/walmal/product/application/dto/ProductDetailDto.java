@@ -1,5 +1,6 @@
 package com.walmal.product.application.dto;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 /**
@@ -13,5 +14,7 @@ public record ProductDetailDto(
         String description,
         String status,
         String categoryName,
-        String primaryImageUrl
+        String primaryImageUrl,
+        BigDecimal lowestPrice,
+        String currency
 ) {}

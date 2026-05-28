@@ -10,6 +10,7 @@ import com.walmal.product.domain.ProductStatus;
 import com.walmal.product.domain.ProductVariant;
 import com.walmal.product.infrastructure.ProductImageRepository;
 import com.walmal.product.infrastructure.ProductImageStorageAdapter;
+import com.walmal.product.infrastructure.ProductPriceRepository;
 import com.walmal.product.infrastructure.ProductRepository;
 import com.walmal.product.infrastructure.ProductVariantRepository;
 import org.slf4j.Logger;
@@ -17,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
@@ -42,17 +44,20 @@ public class ProductCatalogServiceImpl implements ProductCatalogService {
 
     private final ProductVariantRepository variantRepository;
     private final ProductRepository productRepository;
+    private final ProductPriceRepository priceRepository;
     private final ProductImageRepository imageRepository;
     private final ProductImageStorageAdapter imageStorageAdapter;
     private final CacheService cacheService;
 
     public ProductCatalogServiceImpl(ProductVariantRepository variantRepository,
                                      ProductRepository productRepository,
+                                     ProductPriceRepository priceRepository,
                                      ProductImageRepository imageRepository,
                                      ProductImageStorageAdapter imageStorageAdapter,
                                      CacheService cacheService) {
         this.variantRepository = variantRepository;
         this.productRepository = productRepository;
+        this.priceRepository = priceRepository;
         this.imageRepository = imageRepository;
         this.imageStorageAdapter = imageStorageAdapter;
         this.cacheService = cacheService;
@@ -151,6 +156,18 @@ public class ProductCatalogServiceImpl implements ProductCatalogService {
                 .findByProductIdAndPrimaryTrue(p.getId())
                 .map(img -> imageStorageAdapter.getUrl(img.getStorageKey()))
                 .orElse(null);
+        BigDecimal lowestPrice = null;
+        String currency = "USD";
+        for (var variant : p.getVariants()) {
+            var priceOpt = priceRepository.findByVariantId(variant.getId());
+            if (priceOpt.isPresent()) {
+                BigDecimal amount = priceOpt.get().getAmount();
+                if (lowestPrice == null || amount.compareTo(lowestPrice) < 0) {
+                    lowestPrice = amount;
+                    currency = priceOpt.get().getCurrency();
+                }
+            }
+        }
         return new ProductDetailDto(
                 p.getId(),
                 p.getName(),
@@ -159,7 +176,9 @@ public class ProductCatalogServiceImpl implements ProductCatalogService {
                 p.getDescription(),
                 p.getStatus().name(),
                 categoryName,
-                primaryImageUrl
+                primaryImageUrl,
+                lowestPrice,
+                currency
         );
     }
 }
