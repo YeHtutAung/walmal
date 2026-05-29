@@ -55,7 +55,13 @@ public class AuthSecurityConfig {
             "/api-docs",
             "/api-docs/**",
             "/swagger-ui/**",
-            "/swagger-ui.html"
+            "/swagger-ui.html",
+            // Product catalog — public browsing; write/admin endpoints are
+            // still protected by @PreAuthorize at the method level.
+            "/api/v1/product/search",
+            "/api/v1/product/categories",
+            "/api/v1/product/categories/**",
+            "/api/v1/product/**"
     };
 
     @Bean
