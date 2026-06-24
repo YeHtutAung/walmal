@@ -120,7 +120,10 @@ export default function (data) {
         toLocationId:   BUFFER_LOC_ID,
         quantity:       1,
       }
-      const res = http.post(`${BASE_URL}/inventory/stock/transfer`, JSON.stringify(body), headers)
+      const res = http.post(`${BASE_URL}/inventory/stock/transfer`, JSON.stringify(body), {
+        ...headers,
+        responseCallback: http.expectedStatuses(204, 409),
+      })
       writeDuration.add(res.timings.duration)
       // 409 = insufficient stock in source — not a perf failure, just track it
       const ok = check(res, { 'transfer 204 or 409': r => r.status === 204 || r.status === 409 })
