@@ -18,6 +18,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.CrossOriginResourcePolicyHeaderWriter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -41,15 +42,14 @@ public class AuthSecurityConfig {
     private static final String[] PUBLIC_POST_PATHS = {
             "/api/v1/auth/login",
             "/api/v1/auth/register",
-            "/api/v1/auth/refresh"
+            "/api/v1/auth/refresh",
+            // Guest and authenticated order creation (principal is null for guests)
+            "/api/v1/orders"
     };
 
     private static final String[] PUBLIC_GET_PATHS = {
             "/actuator/health",
             "/actuator/info",
-            "/actuator/metrics",
-            "/actuator/metrics/**",
-            "/actuator/prometheus",
             "/v3/api-docs",
             "/v3/api-docs/**",
             "/api-docs",
@@ -61,7 +61,9 @@ public class AuthSecurityConfig {
             "/api/v1/product/search",
             "/api/v1/product/categories",
             "/api/v1/product/categories/**",
-            "/api/v1/product/**"
+            "/api/v1/product/**",
+            // Default location needed for order placement by guests and customers
+            "/api/v1/inventory/locations/default"
     };
 
     @Bean
@@ -75,6 +77,16 @@ public class AuthSecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
+                .headers(headers -> headers
+                        // M2: Content-Security-Policy — restricts resource loading to same origin.
+                        // Stripe.js requires additional directives; add those in the storefront
+                        // (Next.js) rather than here, since the API only serves JSON.
+                        .contentSecurityPolicy(csp -> csp
+                                .policyDirectives("default-src 'none'; frame-ancestors 'none'"))
+                        // L3: Cross-Origin-Resource-Policy — prevents other origins from embedding
+                        // API responses (e.g. via <img src=...> or fetch with no-cors).
+                        .crossOriginResourcePolicy(corp -> corp
+                                .policy(CrossOriginResourcePolicyHeaderWriter.CrossOriginResourcePolicy.SAME_ORIGIN)))
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, authEx) -> {
                             res.setStatus(HttpStatus.UNAUTHORIZED.value());
@@ -91,8 +103,11 @@ public class AuthSecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, PUBLIC_POST_PATHS).permitAll()
                         .requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS).permitAll()
-                        .requestMatchers("/api-docs", "/api-docs/**",
-                                "/actuator/prometheus", "/actuator/metrics", "/actuator/metrics/**").permitAll()
+                        .requestMatchers("/api-docs", "/api-docs/**").permitAll()
+                        // L1: Restrict actuator metrics/prometheus to ADMIN role.
+                        // /actuator/health and /actuator/info remain public (listed in PUBLIC_GET_PATHS).
+                        .requestMatchers("/actuator/metrics", "/actuator/metrics/**",
+                                "/actuator/prometheus").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/users")
                                 .hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/users/{id}/deactivate")

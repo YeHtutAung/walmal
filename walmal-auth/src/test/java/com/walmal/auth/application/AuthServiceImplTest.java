@@ -113,13 +113,16 @@ class AuthServiceImplTest {
     }
 
     @Test
-    @DisplayName("should_throwResourceNotFoundException_when_usernameDoesNotExist")
-    void should_throwResourceNotFoundException_when_usernameDoesNotExist() {
+    @DisplayName("should_throwBusinessRuleException_with_genericMessage_when_usernameDoesNotExist")
+    void should_throwBusinessRuleException_with_genericMessage_when_usernameDoesNotExist() {
+        // SECURITY: Login returns a generic "Invalid credentials" error regardless of whether
+        // the username exists, to prevent user enumeration. The exception type changed from
+        // ResourceNotFoundException to BusinessRuleException as part of fix M1.
         when(userRepository.findByUsername("nobody")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.login(new LoginRequest("nobody", "pass")))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("User");
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("Invalid credentials");
     }
 
     // ── Register ──────────────────────────────────────────────────────────────

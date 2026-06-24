@@ -59,6 +59,14 @@ public class AuthServiceImpl implements AuthService {
     private final AuditService auditService;
     private final DomainEventPublisher eventPublisher;
 
+    /**
+     * Pre-computed BCrypt hash used for constant-time dummy checks during login.
+     * Prevents user enumeration via timing side-channel: without this, a missing
+     * username returns in ~6 ms while an existing username takes ~260 ms (bcrypt).
+     * Computed once at bean construction so the cost factor always matches runtime.
+     */
+    private final String dummyHash;
+
     public AuthServiceImpl(
             UserRepository userRepository,
             RefreshTokenAdapter refreshTokenAdapter,
@@ -72,6 +80,7 @@ public class AuthServiceImpl implements AuthService {
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
         this.eventPublisher = eventPublisher;
+        this.dummyHash = passwordEncoder.encode("walmal-dummy-probe-do-not-use");
     }
 
     // ── Login ─────────────────────────────────────────────────────────────────
@@ -79,8 +88,16 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(readOnly = true)
     public TokenResponse login(LoginRequest request) {
-        User user = userRepository.findByUsername(request.username())
-                .orElseThrow(() -> new ResourceNotFoundException("User", request.username()));
+        User user = userRepository.findByUsername(request.username()).orElse(null);
+
+        if (user == null) {
+            // SECURITY: Run a dummy bcrypt check against a pre-computed hash so that
+            // the response time for a non-existent username (~260 ms) is indistinguishable
+            // from an existing username with a wrong password, preventing timing-based
+            // user enumeration (M1).
+            passwordEncoder.matches(request.password(), dummyHash);
+            throw new BusinessRuleException("Invalid credentials");
+        }
 
         if (!user.isActive()) {
             throw new BusinessRuleException("Account is deactivated: " + request.username());

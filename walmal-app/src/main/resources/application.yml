@@ -72,7 +72,9 @@ management:
         include: health,info,metrics,prometheus
   endpoint:
     health:
-      show-details: always
+      # L2: Only expose health details to authenticated ADMIN users.
+      # Override with show-details: always in application-dev.yml for local development.
+      show-details: when-authorized
     prometheus:
       enabled: true
   health:
