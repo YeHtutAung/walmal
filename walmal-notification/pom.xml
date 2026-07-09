@@ -32,6 +32,12 @@
             <artifactId>walmal-auth</artifactId>
         </dependency>
 
+        <!-- walmal-order: GuestOrderQueryService interface for guest email lookup -->
+        <dependency>
+            <groupId>com.walmal</groupId>
+            <artifactId>walmal-order</artifactId>
+        </dependency>
+
         <!-- Spring Boot starters -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

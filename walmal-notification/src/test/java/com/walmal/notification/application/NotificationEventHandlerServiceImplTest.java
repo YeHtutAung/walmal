@@ -2,6 +2,7 @@ package com.walmal.notification.application;
 
 import com.walmal.auth.application.StaffNotificationQueryService;
 import com.walmal.notification.application.impl.NotificationEventHandlerServiceImpl;
+import com.walmal.order.application.GuestOrderQueryService;
 import com.walmal.notification.domain.NotificationType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -12,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.*;
@@ -22,6 +24,7 @@ class NotificationEventHandlerServiceImplTest {
 
     @Mock NotificationService notificationService;
     @Mock StaffNotificationQueryService staffQueryService;
+    @Mock GuestOrderQueryService guestQueryService;
 
     NotificationEventHandlerServiceImpl handler;
 
@@ -30,7 +33,7 @@ class NotificationEventHandlerServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        handler = new NotificationEventHandlerServiceImpl(notificationService, staffQueryService);
+        handler = new NotificationEventHandlerServiceImpl(notificationService, staffQueryService, guestQueryService);
         orderId = UUID.randomUUID();
         userId  = UUID.randomUUID();
     }
@@ -144,25 +147,49 @@ class NotificationEventHandlerServiceImplTest {
     }
 
     @Test
-    @DisplayName("should_skipNotifications_when_orderConfirmedForGuestOrder")
-    void should_skipNotifications_when_orderConfirmedForGuestOrder() {
+    @DisplayName("should_emailGuest_when_orderConfirmedForGuestOrder")
+    void should_emailGuest_when_orderConfirmedForGuestOrder() {
+        when(guestQueryService.findGuestEmailByOrderId(orderId)).thenReturn(Optional.of("g@x.com"));
+
         handler.handleOrderConfirmed(orderId, null);
 
-        verifyNoInteractions(notificationService);
+        verify(notificationService).sendGuestEmailNotification(
+                eq("g@x.com"), anyString(), anyString(), eq("order.confirmed"), eq(orderId));
+        verifyNoMoreInteractions(notificationService);   // no IN_APP, no user-path send
     }
 
     @Test
-    @DisplayName("should_skipNotifications_when_orderCancelledForGuestOrder")
-    void should_skipNotifications_when_orderCancelledForGuestOrder() {
+    @DisplayName("should_emailGuest_when_orderCancelledForGuestOrder")
+    void should_emailGuest_when_orderCancelledForGuestOrder() {
+        when(guestQueryService.findGuestEmailByOrderId(orderId)).thenReturn(Optional.of("g@x.com"));
+
         handler.handleOrderCancelled(orderId, null, "POS_PRIORITY");
 
-        verifyNoInteractions(notificationService);
+        verify(notificationService).sendGuestEmailNotification(
+                eq("g@x.com"), anyString(), contains("in-store sale was processed earlier"),
+                eq("order.cancelled"), eq(orderId));
+        verifyNoMoreInteractions(notificationService);
     }
 
     @Test
-    @DisplayName("should_skipNotifications_when_fulfillmentShippedForGuestOrder")
-    void should_skipNotifications_when_fulfillmentShippedForGuestOrder() {
+    @DisplayName("should_emailGuest_when_fulfillmentShippedForGuestOrder")
+    void should_emailGuest_when_fulfillmentShippedForGuestOrder() {
+        when(guestQueryService.findGuestEmailByOrderId(orderId)).thenReturn(Optional.of("g@x.com"));
+
         handler.handleFulfillmentShipped(orderId, null, "FedEx", "TRK-001");
+
+        verify(notificationService).sendGuestEmailNotification(
+                eq("g@x.com"), anyString(), contains("TRK-001"),
+                eq("warehouse.fulfillment.shipped"), eq(orderId));
+        verifyNoMoreInteractions(notificationService);
+    }
+
+    @Test
+    @DisplayName("should_skipNotifications_when_guestEmailMissing")
+    void should_skipNotifications_when_guestEmailMissing() {
+        when(guestQueryService.findGuestEmailByOrderId(orderId)).thenReturn(Optional.empty());
+
+        handler.handleOrderConfirmed(orderId, null);
 
         verifyNoInteractions(notificationService);
     }

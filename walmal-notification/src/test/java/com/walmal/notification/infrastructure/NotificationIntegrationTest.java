@@ -11,6 +11,7 @@ import com.walmal.common.notification.NotificationChannel;
 import com.walmal.common.storage.FileStorageService;
 import com.walmal.common.storage.StoredFile;
 import com.walmal.notification.application.NotificationService;
+import com.walmal.order.application.GuestOrderQueryService;
 import com.walmal.notification.application.dto.NotificationSummaryDto;
 import com.walmal.notification.domain.NotificationStatus;
 import com.walmal.notification.domain.NotificationType;
@@ -172,6 +173,11 @@ class NotificationIntegrationTest {
         @Bean @Primary
         StaffNotificationQueryService stubStaffQueryService() {
             return role -> List.of();
+        }
+
+        @Bean @Primary
+        GuestOrderQueryService stubGuestOrderQueryService() {
+            return orderId -> Optional.empty();
         }
 
         @Bean("emailNotificationChannel") @Primary

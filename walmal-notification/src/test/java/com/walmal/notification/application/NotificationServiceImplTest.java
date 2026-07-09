@@ -117,8 +117,8 @@ class NotificationServiceImplTest {
         service.sendGuestEmailNotification("guest@example.com", "Subj", "Body", "order.confirmed", referenceId);
 
         ArgumentCaptor<NotificationLog> captor = ArgumentCaptor.forClass(NotificationLog.class);
-        verify(notificationLogRepository, atLeastOnce()).save(captor.capture());
-        NotificationLog saved = captor.getValue();
+        verify(notificationLogRepository, times(2)).save(captor.capture());
+        NotificationLog saved = captor.getAllValues().get(1);
         assertThat(saved.getRecipientId()).isNull();
         assertThat(saved.getRecipientEmail()).isEqualTo("guest@example.com");
         assertThat(saved.getStatus()).isEqualTo(NotificationStatus.SENT);
@@ -137,8 +137,8 @@ class NotificationServiceImplTest {
             .doesNotThrowAnyException();   // no rethrow => RabbitMQ acks, no redelivery loop
 
         ArgumentCaptor<NotificationLog> captor = ArgumentCaptor.forClass(NotificationLog.class);
-        verify(notificationLogRepository, atLeastOnce()).save(captor.capture());
-        assertThat(captor.getValue().getStatus()).isEqualTo(NotificationStatus.FAILED);
+        verify(notificationLogRepository, times(2)).save(captor.capture());
+        assertThat(captor.getAllValues().get(1).getStatus()).isEqualTo(NotificationStatus.FAILED);
     }
 
     @Test

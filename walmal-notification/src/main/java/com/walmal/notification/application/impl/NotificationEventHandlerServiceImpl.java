@@ -4,6 +4,7 @@ import com.walmal.auth.application.StaffNotificationQueryService;
 import com.walmal.notification.application.NotificationEventHandlerService;
 import com.walmal.notification.application.NotificationService;
 import com.walmal.notification.domain.NotificationType;
+import com.walmal.order.application.GuestOrderQueryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -25,18 +26,21 @@ public class NotificationEventHandlerServiceImpl implements NotificationEventHan
 
     private final NotificationService notificationService;
     private final StaffNotificationQueryService staffQueryService;
+    private final GuestOrderQueryService guestOrderQueryService;
 
     public NotificationEventHandlerServiceImpl(NotificationService notificationService,
-                                               StaffNotificationQueryService staffQueryService) {
+                                               StaffNotificationQueryService staffQueryService,
+                                               GuestOrderQueryService guestOrderQueryService) {
         this.notificationService = notificationService;
         this.staffQueryService = staffQueryService;
+        this.guestOrderQueryService = guestOrderQueryService;
     }
 
     @Override
     public void handleOrderConfirmed(UUID orderId, UUID userId) {
-        if (isGuest(userId, RK_ORDER_CONFIRMED, orderId)) return;
         String subject = "Your order has been confirmed";
         String body = "Your order " + orderId + " has been confirmed and is being processed.";
+        if (handledAsGuest(userId, orderId, subject, body, RK_ORDER_CONFIRMED)) return;
         notificationService.sendNotification(userId, NotificationType.EMAIL, subject, body,
                 RK_ORDER_CONFIRMED, orderId);
         notificationService.sendNotification(userId, NotificationType.IN_APP,
@@ -46,11 +50,11 @@ public class NotificationEventHandlerServiceImpl implements NotificationEventHan
 
     @Override
     public void handleOrderCancelled(UUID orderId, UUID userId, String cancellationReason) {
-        if (isGuest(userId, RK_ORDER_CANCELLED, orderId)) return;
         String note = buildCancellationNote(cancellationReason);
         String subject = "Your order has been cancelled";
         String emailBody = "Your order " + orderId + " has been cancelled. " + note;
         String inAppBody = "Your order " + orderId + " has been cancelled. " + note;
+        if (handledAsGuest(userId, orderId, subject, emailBody, RK_ORDER_CANCELLED)) return;
         notificationService.sendNotification(userId, NotificationType.EMAIL, subject, emailBody,
                 RK_ORDER_CANCELLED, orderId);
         notificationService.sendNotification(userId, NotificationType.IN_APP,
@@ -59,10 +63,10 @@ public class NotificationEventHandlerServiceImpl implements NotificationEventHan
 
     @Override
     public void handleFulfillmentShipped(UUID orderId, UUID userId, String carrier, String trackingNumber) {
-        if (isGuest(userId, RK_FULFILLMENT_SHIPPED, orderId)) return;
         String subject = "Your order has been shipped";
         String body = "Your order " + orderId + " has been shipped via " + carrier
                 + ". Tracking: " + trackingNumber;
+        if (handledAsGuest(userId, orderId, subject, body, RK_FULFILLMENT_SHIPPED)) return;
         notificationService.sendNotification(userId, NotificationType.EMAIL, subject, body,
                 RK_FULFILLMENT_SHIPPED, orderId);
         notificationService.sendNotification(userId, NotificationType.IN_APP,
@@ -111,9 +115,21 @@ public class NotificationEventHandlerServiceImpl implements NotificationEventHan
     }
 
     /**
-     * Guest orders (V13: nullable user_id) have no in-app/email recipient account.
-     * Sending would violate notification_log.recipient_id NOT NULL and put the
-     * message into an endless RabbitMQ redelivery loop, so skip instead.
+     * Guest branch: EMAIL-only to the order's guest_email. Returns true if the
+     * event was handled as a guest order (caller must return immediately).
+     */
+    private boolean handledAsGuest(UUID userId, UUID orderId, String subject, String body, String triggerEvent) {
+        if (userId != null) return false;
+        guestOrderQueryService.findGuestEmailByOrderId(orderId).ifPresentOrElse(
+                email -> notificationService.sendGuestEmailNotification(email, subject, body, triggerEvent, orderId),
+                () -> log.debug("Skipping {} notification for order {}: no guest email on record", triggerEvent, orderId));
+        return true;
+    }
+
+    /**
+     * Guest orders (V13: nullable user_id) get no POS-conflict notification:
+     * there is no user account for in-app delivery, and the guest cancellation
+     * email already carries the conflict note, so skip instead.
      */
     private boolean isGuest(UUID userId, String triggerEvent, UUID referenceId) {
         if (userId != null) return false;
