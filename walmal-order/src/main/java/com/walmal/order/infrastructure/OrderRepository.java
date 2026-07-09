@@ -5,6 +5,8 @@ import com.walmal.order.domain.OrderStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -28,4 +30,11 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
      * Used by conflict resolution to guard against double-cancellation.
      */
     Optional<Order> findByIdAndStatus(UUID id, OrderStatus status);
+
+    /**
+     * Guest email lookup for the notification module. The {@code userId IS NULL}
+     * predicate guarantees registered-user orders return empty by construction.
+     */
+    @Query("SELECT o.guestEmail FROM Order o WHERE o.id = :orderId AND o.userId IS NULL AND o.guestEmail IS NOT NULL")
+    Optional<String> findGuestEmailByOrderId(@Param("orderId") UUID orderId);
 }

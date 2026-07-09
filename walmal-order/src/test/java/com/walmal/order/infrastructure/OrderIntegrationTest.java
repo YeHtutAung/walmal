@@ -14,10 +14,12 @@ import com.walmal.common.payment.PaymentStatus;
 import com.walmal.common.storage.FileStorageService;
 import com.walmal.common.storage.StoredFile;
 import com.walmal.inventory.application.InventoryReservationService;
+import com.walmal.order.application.GuestOrderQueryService;
 import com.walmal.order.application.OrderCreationService;
 import com.walmal.order.application.OrderQueryService;
 import com.walmal.order.application.dto.OrderDetailDto;
 import com.walmal.order.application.dto.OrderLineItem;
+import com.walmal.order.domain.Order;
 import com.walmal.order.domain.OrderStatus;
 import com.walmal.order.domain.ShippingAddress;
 import com.walmal.product.application.ProductCatalogService;
@@ -88,6 +90,7 @@ class OrderIntegrationTest {
     }
 
     @Autowired OrderCreationService orderCreationService;
+    @Autowired GuestOrderQueryService guestOrderQueryService;
     @Autowired OrderQueryService orderQueryService;
     @Autowired OrderRepository orderRepository;
     @Autowired JdbcTemplate jdbcTemplate;
@@ -160,6 +163,30 @@ class OrderIntegrationTest {
         assertThatThrownBy(() -> orderCreationService.cancelOrder(orderId, userId))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("cannot be cancelled");
+    }
+
+    // ── Scenario 5: guest email lookup for the notification module ──────────
+
+    @Test
+    void should_returnGuestEmail_when_guestOrder() {
+        Order guest = orderRepository.save(
+                new Order(null, "guest@example.com", "USD", BigDecimal.TEN, ADDRESS));
+
+        assertThat(guestOrderQueryService.findGuestEmailByOrderId(guest.getId()))
+                .contains("guest@example.com");
+    }
+
+    @Test
+    void should_returnEmpty_when_registeredUserOrder() {
+        Order userOrder = orderRepository.save(
+                new Order(UUID.randomUUID(), "USD", BigDecimal.TEN, ADDRESS));
+
+        assertThat(guestOrderQueryService.findGuestEmailByOrderId(userOrder.getId())).isEmpty();
+    }
+
+    @Test
+    void should_returnEmpty_when_orderDoesNotExist() {
+        assertThat(guestOrderQueryService.findGuestEmailByOrderId(UUID.randomUUID())).isEmpty();
     }
 
     // ── Test infrastructure configuration ────────────────────────────────────
