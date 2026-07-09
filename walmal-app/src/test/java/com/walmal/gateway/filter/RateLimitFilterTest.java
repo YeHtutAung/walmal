@@ -43,8 +43,8 @@ class RateLimitFilterTest {
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
-        filter = new RateLimitFilter(cacheService, objectMapper, false);
-        filterWithProxy = new RateLimitFilter(cacheService, objectMapper, true);
+        filter = new RateLimitFilter(cacheService, objectMapper, false, 100, 20);
+        filterWithProxy = new RateLimitFilter(cacheService, objectMapper, true, 100, 20);
         request = new MockHttpServletRequest("GET", "/api/v1/products");
         request.setRemoteAddr("192.168.1.1");
         response = new MockHttpServletResponse();

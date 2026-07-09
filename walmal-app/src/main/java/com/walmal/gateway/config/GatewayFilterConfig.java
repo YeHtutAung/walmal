@@ -29,9 +29,12 @@ public class GatewayFilterConfig {
     public FilterRegistrationBean<RateLimitFilter> rateLimitFilterRegistration(
             CacheService cacheService,
             ObjectMapper objectMapper,
-            @Value("${WALMAL_TRUST_PROXY:false}") boolean trustProxy) {
+            @Value("${WALMAL_TRUST_PROXY:false}") boolean trustProxy,
+            @Value("${walmal.rate-limit.authenticated-limit:100}") int authenticatedLimit,
+            @Value("${walmal.rate-limit.unauthenticated-limit:20}") int unauthenticatedLimit) {
         FilterRegistrationBean<RateLimitFilter> registration = new FilterRegistrationBean<>();
-        registration.setFilter(new RateLimitFilter(cacheService, objectMapper, trustProxy));
+        registration.setFilter(new RateLimitFilter(cacheService, objectMapper, trustProxy,
+                authenticatedLimit, unauthenticatedLimit));
         registration.setOrder(-90);
         registration.addUrlPatterns("/*");
         registration.setName("rateLimitFilter");

@@ -33,19 +33,22 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(RateLimitFilter.class);
 
-    private static final int AUTHENTICATED_LIMIT = 100;
-    private static final int UNAUTHENTICATED_LIMIT = 20;
     private static final Duration CACHE_TTL = Duration.ofSeconds(90);
     private static final String RATE_LIMIT_MESSAGE = "Rate limit exceeded. Try again later.";
 
     private final CacheService cacheService;
     private final ObjectMapper objectMapper;
     private final boolean trustProxy;
+    private final int authenticatedLimit;
+    private final int unauthenticatedLimit;
 
-    public RateLimitFilter(CacheService cacheService, ObjectMapper objectMapper, boolean trustProxy) {
+    public RateLimitFilter(CacheService cacheService, ObjectMapper objectMapper, boolean trustProxy,
+                           int authenticatedLimit, int unauthenticatedLimit) {
         this.cacheService = cacheService;
         this.objectMapper = objectMapper;
         this.trustProxy = trustProxy;
+        this.authenticatedLimit = authenticatedLimit;
+        this.unauthenticatedLimit = unauthenticatedLimit;
     }
 
     @Override
@@ -67,10 +70,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (authentication != null && authentication.isAuthenticated()
                 && !"anonymousUser".equals(authentication.getPrincipal())) {
             identity = authentication.getName();
-            limit = AUTHENTICATED_LIMIT;
+            limit = authenticatedLimit;
         } else {
             identity = "ip:" + resolveClientIp(request);
-            limit = UNAUTHENTICATED_LIMIT;
+            limit = unauthenticatedLimit;
         }
 
         long windowKey = System.currentTimeMillis() / 60000;
