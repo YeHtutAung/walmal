@@ -144,6 +144,38 @@ class NotificationEventHandlerServiceImplTest {
     }
 
     @Test
+    @DisplayName("should_skipNotifications_when_orderConfirmedForGuestOrder")
+    void should_skipNotifications_when_orderConfirmedForGuestOrder() {
+        handler.handleOrderConfirmed(orderId, null);
+
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    @DisplayName("should_skipNotifications_when_orderCancelledForGuestOrder")
+    void should_skipNotifications_when_orderCancelledForGuestOrder() {
+        handler.handleOrderCancelled(orderId, null, "POS_PRIORITY");
+
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    @DisplayName("should_skipNotifications_when_fulfillmentShippedForGuestOrder")
+    void should_skipNotifications_when_fulfillmentShippedForGuestOrder() {
+        handler.handleFulfillmentShipped(orderId, null, "FedEx", "TRK-001");
+
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    @DisplayName("should_skipNotifications_when_posSyncConflictResolvedForGuestOrder")
+    void should_skipNotifications_when_posSyncConflictResolvedForGuestOrder() {
+        handler.handlePosSyncConflictResolved(orderId, null, "POS_PRIORITY");
+
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
     @DisplayName("should_sendEmailAndInApp_when_posSyncConflictResolved")
     void should_sendEmailAndInApp_when_posSyncConflictResolved() {
         UUID cancelledOrderId = UUID.randomUUID();
