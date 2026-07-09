@@ -18,10 +18,10 @@
 
 ---
 
-### Task 1: V14 migration
+### Task 1: V15 migration
 
 **Files:**
-- Create: `walmal-app/src/main/resources/db/migration/V14__create_outbox_events.sql`
+- Create: `walmal-app/src/main/resources/db/migration/V15__create_outbox_events.sql`
 
 - [ ] **Step 1: Write the migration**
 
@@ -52,8 +52,8 @@ Expected: BUILD SUCCESS (migration syntax is validated at runtime in Task 6; thi
 - [ ] **Step 3: Commit**
 
 ```bash
-git add walmal-app/src/main/resources/db/migration/V14__create_outbox_events.sql
-git commit -m "feat(outbox): add V14 outbox_events table"
+git add walmal-app/src/main/resources/db/migration/V15__create_outbox_events.sql
+git commit -m "feat(outbox): add V15 outbox_events table"
 ```
 
 ---
@@ -99,7 +99,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * JDBC access to the {@code outbox_events} table (V14).
+ * JDBC access to the {@code outbox_events} table (V15).
  *
  * <p>Deliberately not a JPA entity: the outbox is infrastructure plumbing, and
  * plain SQL keeps {@code FOR UPDATE SKIP LOCKED} and the partial index on
@@ -636,7 +636,7 @@ git commit -m "feat(outbox): move @EnableScheduling to infrastructure config"
 
 ### Task 6: Live verification (JAR rebuild, broker-outage drill, E2E)
 
-No new source files. This validates what unit tests cannot: Flyway V14, real
+No new source files. This validates what unit tests cannot: Flyway V15, real
 `FOR UPDATE SKIP LOCKED`, rollback semantics, and end-to-end delivery.
 
 Prereqs: Docker services healthy (`docker ps`); if the engine is down:
@@ -648,7 +648,7 @@ Prereqs: Docker services healthy (`docker ps`); if the engine is down:
 Run: `cd C:/YHA/006_Claude_Workspace/walmal && ./mvnw -pl walmal-app -am -DskipTests clean package -q`
 Expected: BUILD SUCCESS
 
-- [ ] **Step 2: Start the backend and confirm V14 applied**
+- [ ] **Step 2: Start the backend and confirm V15 applied**
 
 Run (background): `cd C:/YHA/006_Claude_Workspace/walmal && java -Dspring.profiles.active=test -jar walmal-app/target/walmal-app-0.1.0-SNAPSHOT.jar > /tmp/backend-outbox.log 2>&1`
 Wait for `curl -s http://localhost:8080/actuator/health` → `UP`, then:

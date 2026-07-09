@@ -33,7 +33,7 @@ success. There is no direct-send fast path — one uniform code path.
 - Latency: events are delivered within ~1 poll interval (1 s). Consumers of
   emails/fulfillments (E2E tests, users) are poll-based and unaffected.
 
-### Schema (Flyway `V14__create_outbox_events.sql`, in walmal-app like all migrations)
+### Schema (Flyway `V15__create_outbox_events.sql`, in walmal-app like all migrations)
 
 ```sql
 CREATE TABLE outbox_events (
