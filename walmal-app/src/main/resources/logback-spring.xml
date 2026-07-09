@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+  <!-- ─────────────────────────────────────────────────────────────
+       Walmal structured logging configuration
+       - dev/test profiles:  human-readable coloured console output
+       - staging/prod profiles: JSON (logstash) for ELK / CloudWatch
+       ───────────────────────────────────────────────────────────── -->
+
+  <!-- Registers Spring Boot's %clr / %wEx conversion words used by CONSOLE_PLAIN.
+       Without this include, Logback fails at startup with
+       "no conversion class registered for [clr]". -->
+  <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+  <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="walmal"/>
+
+  <!-- ── Human-readable appender (dev / test) ──────────────────── -->
+  <appender name="CONSOLE_PLAIN" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%clr(%d{HH:mm:ss.SSS}){faint} %clr(%5p) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n%wEx</pattern>
+      <charset>UTF-8</charset>
+    </encoder>
+  </appender>
+
+  <!-- ── JSON appender (staging / prod) for ELK / CloudWatch ───── -->
+  <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+      <!-- Standard fields -->
+      <fieldNames>
+        <timestamp>@timestamp</timestamp>
+        <message>message</message>
+        <logger>logger</logger>
+        <thread>thread</thread>
+        <levelValue>[ignore]</levelValue>
+      </fieldNames>
+      <!-- Add application name and correlation ID from MDC -->
+      <customFields>{"app":"${APP_NAME}"}</customFields>
+      <!-- Include MDC fields: correlationId, userId set by RequestLoggingFilter -->
+      <includeMdcKeyName>correlationId</includeMdcKeyName>
+      <includeMdcKeyName>userId</includeMdcKeyName>
+      <!-- Shorten stack traces to keep log volume manageable -->
+      <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+        <maxDepthPerCause>20</maxDepthPerCause>
+        <shortenedClassNameLength>20</shortenedClassNameLength>
+        <rootCauseFirst>true</rootCauseFirst>
+      </throwableConverter>
+    </encoder>
+  </appender>
+
+  <!-- ── Rolling file appender (optional, enabled on staging/prod) ─ -->
+  <appender name="FILE_JSON" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>logs/walmal.log</file>
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>logs/walmal.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+      <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+        <maxFileSize>100MB</maxFileSize>
+      </timeBasedFileNamingAndTriggeringPolicy>
+      <maxHistory>30</maxHistory>
+      <totalSizeCap>5GB</totalSizeCap>
+    </rollingPolicy>
+    <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+      <customFields>{"app":"${APP_NAME}"}</customFields>
+      <includeMdcKeyName>correlationId</includeMdcKeyName>
+      <includeMdcKeyName>userId</includeMdcKeyName>
+    </encoder>
+  </appender>
+
+  <!-- ── Async wrappers to avoid blocking request threads ────────── -->
+  <appender name="ASYNC_JSON" class="ch.qos.logback.classic.AsyncAppender">
+    <appender-ref ref="CONSOLE_JSON"/>
+    <queueSize>512</queueSize>
+    <discardingThreshold>0</discardingThreshold>
+  </appender>
+
+  <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
+    <appender-ref ref="FILE_JSON"/>
+    <queueSize>512</queueSize>
+    <discardingThreshold>0</discardingThreshold>
+  </appender>
+
+  <!-- ── dev / test profile: plain coloured console ──────────────── -->
+  <springProfile name="dev,test,default">
+    <root level="INFO">
+      <appender-ref ref="CONSOLE_PLAIN"/>
+    </root>
+    <logger name="com.walmal" level="DEBUG"/>
+    <!-- Suppress noisy framework DEBUG -->
+    <logger name="org.springframework.security" level="INFO"/>
+    <logger name="org.hibernate.SQL" level="DEBUG"/>
+    <logger name="org.hibernate.type.descriptor.sql" level="TRACE"/>
+  </springProfile>
+
+  <!-- ── staging profile: JSON console only ──────────────────────── -->
+  <springProfile name="staging">
+    <root level="INFO">
+      <appender-ref ref="ASYNC_JSON"/>
+    </root>
+    <logger name="com.walmal" level="INFO"/>
+    <logger name="org.springframework" level="WARN"/>
+    <logger name="org.flywaydb" level="INFO"/>
+  </springProfile>
+
+  <!-- ── prod profile: JSON console + rolling file ───────────────── -->
+  <springProfile name="prod">
+    <root level="WARN">
+      <appender-ref ref="ASYNC_JSON"/>
+      <appender-ref ref="ASYNC_FILE"/>
+    </root>
+    <logger name="com.walmal" level="INFO"/>
+    <logger name="org.springframework" level="WARN"/>
+    <logger name="org.flywaydb" level="INFO"/>
+    <!-- Silence HikariCP noise -->
+    <logger name="com.zaxxer.hikari" level="WARN"/>
+  </springProfile>
+
+</configuration>

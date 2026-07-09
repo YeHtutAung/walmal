@@ -1,0 +1,25 @@
+walmal:
+  cors:
+    # E2E tests run the Next.js frontend on port 3001 to avoid conflicting with a
+    # dev server on 3000.  Port 3001 must be in the allowed-origins list so that
+    # browser-to-backend fetch() calls pass the CORS check.
+    allowed-origins: "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177"
+  rate-limit:
+    # Effectively unlimited for E2E and integration test runs.
+    # Unit tests (RateLimitFilterTest) construct the filter directly with hardcoded
+    # limits (100/20) via the constructor and are unaffected by this profile override.
+    authenticated-limit: 100000
+    unauthenticated-limit: 100000
+
+# Expose a profile marker on the public /actuator/info endpoint so the E2E
+# global-setup can verify that a reused backend was actually started with the
+# test profile (and from a JAR that packages this file).  Only the test profile
+# enables the env info contributor — prod/staging expose nothing extra.
+management:
+  info:
+    env:
+      enabled: true
+
+info:
+  walmal:
+    profile: test
