@@ -68,9 +68,15 @@ the table stays near-empty in steady state and needs no purge job.
 
 ### Relay (`OutboxRelay`, new, walmal-infrastructure)
 
-- `@Scheduled(fixedDelay = 1000)` method; `@EnableScheduling` added to the
-  infrastructure config if not already active in the app.
-- Each tick, in one transaction:
+- `@Scheduled(fixedDelay = 1000)` method. `@EnableScheduling` is currently
+  declared only in `InventoryConfig` (whose Javadoc claims to be the sole
+  declaration site): move the declaration to a walmal-infrastructure config and
+  update the InventoryConfig Javadoc accordingly, so infrastructure does not
+  depend on another module for its scheduler.
+- Each tick, in one transaction (the send exception in step 4 MUST be caught
+  inside the tick so the transaction still commits — otherwise the `attempts`
+  increment and prior deletes would roll back and the retry cap could never be
+  reached):
   1. `SELECT * FROM outbox_events WHERE status = 'PENDING'
       ORDER BY created_at LIMIT 100 FOR UPDATE SKIP LOCKED`
   2. For each row in order: build a `Message` with the stored payload bytes and
@@ -93,6 +99,9 @@ the table stays near-empty in steady state and needs no purge job.
 FAILED. Recovery is a one-line SQL `UPDATE outbox_events SET status='PENDING',
 attempts=0 WHERE status='FAILED'` by an operator. This is accepted for MVP; the
 alternative (exponential backoff / `next_attempt_at`) is deferred as YAGNI.
+Note also that once a row parks as FAILED, later events (including for the same
+order) overtake it — an accepted consequence of the cap; consumers' idempotency
+and state guards (e.g., PENDING-only cancellation) tolerate this.
 
 ### Delivery semantics
 
@@ -117,7 +126,11 @@ TDD throughout (red → green per test):
 1. **Publisher unit tests** (rework `RabbitDomainEventPublisherTest`):
    - publish inserts a row with derived exchange, routing key, JSON payload
    - custom routing key respected
-   - JSON payload contains the event fields (shape check against ObjectMapper)
+   - JSON payload contains the event fields, and timestamp fields serialize in
+     the same format consumers receive today (`Jackson2JsonMessageConverter`
+     uses spring-amqp's enhanced ObjectMapper, which may differ from Boot's
+     autoconfigured one on `Instant` handling — the test must pin this down;
+     the publisher must be configured to match)
    - no direct `rabbitTemplate` interaction anymore
 2. **Relay unit tests** (new `OutboxRelayTest`, mocked JdbcTemplate/RabbitTemplate):
    - pending row → sent with correct exchange/key/contentType → deleted
