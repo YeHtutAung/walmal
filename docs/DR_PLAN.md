@@ -218,6 +218,27 @@ SKIP_CONFIRM=true \
 
 2. Spring Boot will automatically reconnect and process queued messages.
 
+3. **Recover parked outbox events.** Domain events are staged in the
+   `outbox_events` table (transactional outbox) and relayed to RabbitMQ every
+   second. During a broker outage rows stay `PENDING` and retry automatically;
+   after 60 failed attempts (~1 minute of continuous outage per row) a row is
+   parked as `status = 'FAILED'` and skipped by the relay. After RabbitMQ is
+   back, check for and re-queue parked events:
+
+   ```sql
+   -- Inspect parked events
+   SELECT id, exchange, routing_key, attempts, last_error, created_at
+   FROM outbox_events WHERE status = 'FAILED' ORDER BY created_at;
+
+   -- Re-queue them (relay picks them up within ~1s)
+   UPDATE outbox_events SET status = 'PENDING', attempts = 0
+   WHERE status = 'FAILED';
+   ```
+
+   Note: rows created after a row parked as FAILED may have already been
+   delivered out of order; consumers are idempotent and state-guarded, so
+   re-queuing is safe.
+
 ---
 
 ## Contact and Escalation
