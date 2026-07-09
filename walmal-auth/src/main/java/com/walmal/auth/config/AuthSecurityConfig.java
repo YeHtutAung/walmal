@@ -83,10 +83,11 @@ public class AuthSecurityConfig {
                         // (Next.js) rather than here, since the API only serves JSON.
                         .contentSecurityPolicy(csp -> csp
                                 .policyDirectives("default-src 'none'; frame-ancestors 'none'"))
-                        // L3: Cross-Origin-Resource-Policy — prevents other origins from embedding
-                        // API responses (e.g. via <img src=...> or fetch with no-cors).
+                        // L3: Cross-Origin-Resource-Policy — set to cross-origin because this is a
+                        // REST API intentionally consumed by a separate frontend origin (Next.js on
+                        // port 3000). SAME_ORIGIN would block cross-origin fetch() in WebKit.
                         .crossOriginResourcePolicy(corp -> corp
-                                .policy(CrossOriginResourcePolicyHeaderWriter.CrossOriginResourcePolicy.SAME_ORIGIN)))
+                                .policy(CrossOriginResourcePolicyHeaderWriter.CrossOriginResourcePolicy.CROSS_ORIGIN)))
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, authEx) -> {
                             res.setStatus(HttpStatus.UNAUTHORIZED.value());
