@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Configuration;
  * Top-level Spring configuration for the walmal-inventory module.
  *
  * <p>{@code @EnableScheduling} (which activates {@code ReservationExpiryJob})
- * is declared once, in {@code InfrastructureAutoConfiguration}
+ * is declared once, in {@code InfrastructureConfiguration}
  * (walmal-infrastructure) — it must NOT be duplicated here.</p>
  *
  * <p>{@code @EnableMethodSecurity} is already declared in {@code AuthSecurityConfig}

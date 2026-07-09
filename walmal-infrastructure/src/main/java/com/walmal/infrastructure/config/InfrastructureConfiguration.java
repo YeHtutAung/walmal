@@ -8,11 +8,16 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
+/**
+ * Central configuration for walmal-infrastructure. Loaded via the application's
+ * {@code com.walmal} component scan (not Spring Boot auto-configuration
+ * registration — there is no {@code AutoConfiguration.imports} entry).
+ */
 @Configuration
 @ComponentScan("com.walmal.infrastructure")
 @EnableJpaRepositories("com.walmal.infrastructure")
 @EnableScheduling  // activates OutboxRelay (and module jobs, e.g. inventory's ReservationExpiryJob)
-public class InfrastructureAutoConfiguration {
+public class InfrastructureConfiguration {
 
     @Bean
     public MinioClient minioClient(

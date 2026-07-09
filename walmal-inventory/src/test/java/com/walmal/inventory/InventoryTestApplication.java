@@ -11,7 +11,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  */
 @SpringBootApplication
 @EnableSpringDataWebSupport(pageSerializationMode = EnableSpringDataWebSupport.PageSerializationMode.VIA_DTO)
-@EnableScheduling // in production this comes from InfrastructureAutoConfiguration (walmal-infrastructure), outside this test's component scan
+@EnableScheduling // in production this comes from InfrastructureConfiguration (walmal-infrastructure), outside this test's component scan
 public class InventoryTestApplication {
     // No main method needed — this class exists only as a @SpringBootConfiguration
     // anchor for test slices in walmal-inventory.
