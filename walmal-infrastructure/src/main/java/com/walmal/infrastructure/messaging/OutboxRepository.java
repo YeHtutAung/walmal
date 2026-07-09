@@ -3,6 +3,7 @@ package com.walmal.infrastructure.messaging;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 import java.util.List;
 import java.util.UUID;
@@ -36,9 +37,11 @@ public class OutboxRepository {
     }
 
     /**
-     * Locks and returns the oldest PENDING rows. Must be called inside an active
-     * transaction (the relay tick) for {@code FOR UPDATE SKIP LOCKED} to hold.
+     * Locks and returns the oldest PENDING rows. Requires an active transaction
+     * (MANDATORY propagation) — {@code FOR UPDATE SKIP LOCKED} only holds inside the
+     * relay tick's transaction.
      */
+    @Transactional(propagation = Propagation.MANDATORY)
     public List<OutboxEventRow> lockPendingBatch(int limit) {
         return jdbc.query(
                 "SELECT id, exchange, routing_key, payload, attempts FROM outbox_events " +
@@ -52,6 +55,7 @@ public class OutboxRepository {
                 limit);
     }
 
+    @Transactional(propagation = Propagation.MANDATORY)
     public void delete(UUID id) {
         jdbc.update("DELETE FROM outbox_events WHERE id = ?", id);
     }
@@ -60,6 +64,7 @@ public class OutboxRepository {
      * Records a failed send attempt. When {@code exhausted} is true the row is
      * parked as FAILED and no longer selected by {@link #lockPendingBatch}.
      */
+    @Transactional(propagation = Propagation.MANDATORY)
     public void recordFailure(UUID id, int attempts, String lastError, boolean exhausted) {
         jdbc.update(
                 "UPDATE outbox_events SET attempts = ?, last_error = ?, status = ? WHERE id = ?",
