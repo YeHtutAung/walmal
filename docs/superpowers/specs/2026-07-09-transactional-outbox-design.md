@@ -41,8 +41,8 @@ CREATE TABLE outbox_events (
     exchange    VARCHAR(100) NOT NULL,
     routing_key VARCHAR(100) NOT NULL,
     payload     TEXT NOT NULL,
-    status      VARCHAR(20)  NOT NULL DEFAULT 'PENDING',
-    attempts    INT          NOT NULL DEFAULT 0,
+    status      VARCHAR(20)  NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'FAILED')),
+    attempts    INT          NOT NULL DEFAULT 0 CHECK (attempts >= 0),
     last_error  TEXT,
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
