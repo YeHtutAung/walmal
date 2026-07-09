@@ -40,6 +40,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Tag("integration")
 @SpringBootTest
@@ -65,6 +66,7 @@ class NotificationIntegrationTest {
 
     @Autowired NotificationService notificationService;
     @Autowired NotificationLogRepository notificationLogRepository;
+    @Autowired JdbcTemplate jdbcTemplate;
 
     private static final UUID TEST_USER_ID = UUID.fromString("a0000000-0000-0000-0000-000000000001");
 
@@ -91,6 +93,22 @@ class NotificationIntegrationTest {
                 .listNotificationsForUser(TEST_USER_ID, Pageable.unpaged());
 
         assertThat(page.getContent()).anyMatch(n -> n.status() == NotificationStatus.SENT);
+    }
+
+    @Test
+    void should_rejectInsert_when_bothRecipientIdAndEmailNull() {
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "INSERT INTO notification_log (id, recipient_id, recipient_email, type, status, subject, body, trigger_event, created_at, updated_at) " +
+                "VALUES (gen_random_uuid(), NULL, NULL, 'EMAIL', 'PENDING', 's', 'b', 'order.confirmed', now(), now())"))
+            .hasMessageContaining("chk_notification_recipient");
+    }
+
+    @Test
+    void should_allowInsert_when_onlyRecipientEmailSet() {
+        int rows = jdbcTemplate.update(
+                "INSERT INTO notification_log (id, recipient_id, recipient_email, type, status, subject, body, trigger_event, created_at, updated_at) " +
+                "VALUES (gen_random_uuid(), NULL, 'guest@example.com', 'EMAIL', 'PENDING', 's', 'b', 'order.confirmed', now(), now())");
+        assertThat(rows).isEqualTo(1);
     }
 
     @Test

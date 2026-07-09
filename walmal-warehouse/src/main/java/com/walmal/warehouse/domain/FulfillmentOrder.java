@@ -33,7 +33,8 @@ public class FulfillmentOrder {
     @Column(name = "order_id", nullable = false, unique = true)
     private UUID orderId;
 
-    @Column(name = "user_id", nullable = false)
+    // nullable — null means guest order (no user account)
+    @Column(name = "user_id")
     private UUID userId;
 
     @Enumerated(EnumType.STRING)

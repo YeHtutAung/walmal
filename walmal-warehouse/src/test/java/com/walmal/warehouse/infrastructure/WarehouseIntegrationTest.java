@@ -16,6 +16,7 @@ import com.walmal.order.application.OrderQueryService;
 import com.walmal.order.domain.OrderStatus;
 import com.walmal.warehouse.application.WarehouseFulfillmentService;
 import com.walmal.warehouse.application.dto.FulfillmentDetailDto;
+import com.walmal.warehouse.domain.FulfillmentOrder;
 import com.walmal.warehouse.domain.FulfillmentStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -144,6 +145,15 @@ class WarehouseIntegrationTest {
         assertThatThrownBy(() -> fulfillmentService.cancelFulfillment(SEEDED_ORDER_ID))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("cannot be cancelled");
+    }
+
+    // ── Scenario 6: guest order fulfillment (null user_id) ───────────────────
+
+    @Test
+    void should_createFulfillment_when_guestOrderHasNullUserId() {
+        FulfillmentOrder fulfillment = new FulfillmentOrder(UUID.randomUUID(), null, "1 Main St, City, US 12345");
+        FulfillmentOrder saved = fulfillmentRepo.save(fulfillment);
+        assertThat(saved.getUserId()).isNull();
     }
 
     // ── Test infrastructure configuration ────────────────────────────────────

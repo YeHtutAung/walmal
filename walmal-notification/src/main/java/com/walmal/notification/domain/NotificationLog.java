@@ -13,8 +13,13 @@ import java.util.UUID;
 @Table(name = "notification_log")
 public class NotificationLog extends BaseEntity {
 
-    @Column(name = "recipient_id", nullable = false)
+    // nullable — guest notifications have no user account
+    @Column(name = "recipient_id")
     private UUID recipientId;
+
+    // set only when recipientId is null (guest)
+    @Column(name = "recipient_email", length = 320)
+    private String recipientEmail;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, length = 20)
@@ -52,6 +57,18 @@ public class NotificationLog extends BaseEntity {
         this.status = NotificationStatus.PENDING;
     }
 
+    /** Guest notification: recipient identified by email; recipientId stays null. */
+    public NotificationLog(String recipientEmail, NotificationType type, String subject,
+                           String body, String triggerEvent, UUID referenceId) {
+        this.recipientEmail = recipientEmail;
+        this.type = type;
+        this.subject = subject;
+        this.body = body;
+        this.triggerEvent = triggerEvent;
+        this.referenceId = referenceId;
+        this.status = NotificationStatus.PENDING;
+    }
+
     public void markSent() { this.status = NotificationStatus.SENT; }
 
     public void markFailed(String error) {
@@ -60,6 +77,7 @@ public class NotificationLog extends BaseEntity {
     }
 
     public UUID getRecipientId() { return recipientId; }
+    public String getRecipientEmail() { return recipientEmail; }
     public NotificationType getType() { return type; }
     public NotificationStatus getStatus() { return status; }
     public String getSubject() { return subject; }
