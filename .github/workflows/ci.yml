@@ -115,6 +115,9 @@ jobs:
       contents: read
       packages: write
 
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -205,7 +208,6 @@ jobs:
   # ─────────────────────────────────────────────
   # Job 4: Deploy to Staging
   # Only runs on push to main
-  # Replace the run: block with your actual deploy command
   # ─────────────────────────────────────────────
   deploy-staging:
     name: Deploy to Staging
@@ -221,21 +223,145 @@ jobs:
       - name: Deploy to staging
         env:
           IMAGE_TAG: sha-${{ github.sha }}
+          STAGING_HOST: ${{ secrets.STAGING_HOST }}
+          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          STAGING_USER: ${{ secrets.STAGING_USER }}
         run: |
           echo "Deploying $IMAGE_TAG to staging..."
           # Replace this block with your actual deploy command:
           #
           # Option A — SSH + Docker Compose on a VPS:
-          # ssh user@your-server "
+          # echo "$STAGING_SSH_KEY" > /tmp/deploy_key && chmod 600 /tmp/deploy_key
+          # ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no "$STAGING_USER@$STAGING_HOST" "
           #   export WALMAL_IMAGE_TAG=$IMAGE_TAG
           #   cd /opt/walmal
-          #   docker compose pull walmal-app
-          #   docker compose up -d walmal-app
+          #   docker compose -f docker-compose.prod.yml pull app
+          #   docker compose -f docker-compose.prod.yml up -d app
           # "
           #
           # Option B — Railway / Render / Fly.io CLI:
           # railway up --service walmal-app
           #
           # Option C — Kubernetes:
-          # kubectl set image deployment/walmal-app walmal-app=$IMAGE_TAG
-          echo "Deploy step — configure for your target platform."
+          # kubectl set image deployment/walmal-app walmal-app=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$IMAGE_TAG
+          echo "Deploy step — configure for your target platform (see docs/DEPLOYMENT.md)."
+
+  # ─────────────────────────────────────────────
+  # Job 5: Smoke Tests — Staging
+  # Verifies the staging deployment is healthy
+  # ─────────────────────────────────────────────
+  smoke-test-staging:
+    name: Smoke Tests (Staging)
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Wait for staging to be healthy
+        env:
+          STAGING_URL: ${{ secrets.STAGING_API_URL }}
+        run: |
+          echo "Waiting for $STAGING_URL/actuator/health to be UP..."
+          for i in $(seq 1 24); do
+            STATUS=$(curl -sf "$STAGING_URL/actuator/health" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status',''))" 2>/dev/null || echo "")
+            if [ "$STATUS" = "UP" ]; then
+              echo "Staging is healthy."
+              exit 0
+            fi
+            echo "Attempt $i/24: status='$STATUS' — retrying in 10s..."
+            sleep 10
+          done
+          echo "ERROR: Staging did not become healthy within 4 minutes."
+          exit 1
+
+      - name: Run smoke tests
+        env:
+          BASE_URL: ${{ secrets.STAGING_API_URL }}
+        run: ./scripts/smoke-test.sh "$BASE_URL"
+
+  # ─────────────────────────────────────────────
+  # Job 6: Deploy to Production
+  # Requires manual approval via GitHub environment
+  # protection rules (configure in repo Settings >
+  # Environments > production > Required reviewers).
+  # ─────────────────────────────────────────────
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: smoke-test-staging
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production   # <-- triggers the manual approval gate
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to production
+        env:
+          IMAGE_TAG: sha-${{ github.sha }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          echo "Deploying $IMAGE_TAG to PRODUCTION..."
+          # Replace with your actual deploy command — same pattern as staging:
+          # echo "$PROD_SSH_KEY" > /tmp/deploy_key && chmod 600 /tmp/deploy_key
+          # ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no "$PROD_USER@$PROD_HOST" "
+          #   export WALMAL_IMAGE_TAG=$IMAGE_TAG
+          #   cd /opt/walmal
+          #   docker compose -f docker-compose.prod.yml pull app
+          #   docker compose -f docker-compose.prod.yml up -d app
+          # "
+          echo "Deploy step — configure for your target platform (see docs/DEPLOYMENT.md)."
+
+      - name: Record deployment
+        run: |
+          echo "Production deployment of sha-${{ github.sha }} completed at $(date -Iseconds)"
+
+  # ─────────────────────────────────────────────
+  # Job 7: Smoke Tests — Production
+  # Verifies the production deployment is healthy
+  # ─────────────────────────────────────────────
+  smoke-test-prod:
+    name: Smoke Tests (Production)
+    runs-on: ubuntu-latest
+    needs: deploy-prod
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Wait for production to be healthy
+        env:
+          PROD_URL: ${{ secrets.PROD_API_URL }}
+        run: |
+          echo "Waiting for $PROD_URL/actuator/health to be UP..."
+          for i in $(seq 1 24); do
+            STATUS=$(curl -sf "$PROD_URL/actuator/health" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status',''))" 2>/dev/null || echo "")
+            if [ "$STATUS" = "UP" ]; then
+              echo "Production is healthy."
+              exit 0
+            fi
+            echo "Attempt $i/24: status='$STATUS' — retrying in 10s..."
+            sleep 10
+          done
+          echo "ERROR: Production did not become healthy within 4 minutes."
+          exit 1
+
+      - name: Run smoke tests
+        env:
+          BASE_URL: ${{ secrets.PROD_API_URL }}
+        run: ./scripts/smoke-test.sh "$BASE_URL"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "PRODUCTION smoke tests FAILED for sha-${{ github.sha }}."
+          echo "Consider rolling back: see docs/DEPLOYMENT.md#rollback"
+          # Add Slack/PagerDuty notification here if needed

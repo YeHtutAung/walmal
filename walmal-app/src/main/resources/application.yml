@@ -3,9 +3,16 @@ spring:
     name: walmal
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/walmal
-    username: walmal
-    password: walmal
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/walmal}
+    username: ${SPRING_DATASOURCE_USERNAME:walmal}
+    password: ${SPRING_DATASOURCE_PASSWORD:walmal}
+    hikari:
+      pool-name: walmal-pool
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
 
   jpa:
     hibernate:
@@ -21,18 +28,22 @@ spring:
 
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
 
   rabbitmq:
-    host: localhost
-    port: 5672
-    username: walmal
-    password: walmal
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:walmal}
+    password: ${SPRING_RABBITMQ_PASSWORD:walmal}
+    virtual-host: ${SPRING_RABBITMQ_VIRTUAL_HOST:/}
 
   mail:
-    host: localhost
-    port: 1025
+    host: ${SPRING_MAIL_HOST:localhost}
+    port: ${SPRING_MAIL_PORT:1025}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -53,17 +64,20 @@ spring:
 
 walmal:
   minio:
-    url: http://localhost:9000
-    public-url: ${WALMAL_MINIO_PUBLIC_URL:http://localhost:9000}
-    access-key: walmal
-    secret-key: walmal123
+    url: ${MINIO_URL:http://localhost:9000}
+    public-url: ${MINIO_PUBLIC_URL:${MINIO_URL:http://localhost:9000}}
+    access-key: ${MINIO_ACCESS_KEY:walmal}
+    secret-key: ${MINIO_SECRET_KEY:walmal123}
   jwt:
     secret: ${WALMAL_JWT_SECRET:walmal-dev-secret-key-change-in-production-minimum-256-bits}
     access-token-expire-minutes: 15
   cors:
     # Override with WALMAL_CORS_ALLOWED_ORIGINS=https://app.example.com in production.
     # WALMAL_TRUST_PROXY=true must also be set when a reverse proxy (Nginx/Caddy) sets X-Forwarded-For.
-    allowed-origins: "${WALMAL_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177}"
+    allowed-origins: "${WALMAL_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177}"
+  rate-limit:
+    authenticated-limit: ${WALMAL_RATE_LIMIT_AUTHENTICATED:60}
+    unauthenticated-limit: ${WALMAL_RATE_LIMIT_UNAUTHENTICATED:20}
 
 management:
   endpoints:
@@ -72,8 +86,6 @@ management:
         include: health,info,metrics,prometheus
   endpoint:
     health:
-      # L2: Only expose health details to authenticated ADMIN users.
-      # Override with show-details: always in application-dev.yml for local development.
       show-details: when-authorized
     prometheus:
       enabled: true
