@@ -16,9 +16,12 @@ import java.nio.charset.StandardCharsets;
  *
  * <p>Each tick runs in one transaction: lock the oldest PENDING rows
  * ({@code FOR UPDATE SKIP LOCKED} — multi-instance safe), send each as raw
- * JSON, delete on success. A send failure is caught (so the tick still
- * commits its deletes and the attempts increment), the failure is recorded,
- * and the batch halts so later events never overtake earlier ones.</p>
+ * JSON, delete on success. An {@link org.springframework.amqp.AmqpException}
+ * from {@code send} is caught (so the tick still commits its deletes and
+ * the attempts increment), the failure is recorded, and the batch halts so
+ * later events never overtake earlier ones. A {@code DataAccessException}
+ * from {@code delete} is not caught: it propagates, rolls back the tick
+ * transaction, and the row is retried next tick (accepted at-least-once).</p>
  *
  * <p>After {@link #MAX_ATTEMPTS} failures (~1 minute of continuous broker
  * outage at one attempt per tick) a row is parked as FAILED and skipped
@@ -52,17 +55,17 @@ public class OutboxRelay {
             try {
                 rabbitTemplate.send(row.exchange(), row.routingKey(), toMessage(row));
                 outboxRepository.delete(row.id());
-            } catch (RuntimeException e) {
+            } catch (org.springframework.amqp.AmqpException e) {
                 int attempts = row.attempts() + 1;
                 boolean exhausted = attempts >= MAX_ATTEMPTS;
-                outboxRepository.recordFailure(row.id(), attempts, e.getMessage(), exhausted);
+                outboxRepository.recordFailure(row.id(), attempts, e.toString(), exhausted);
                 if (exhausted) {
                     log.error("Outbox event {} ({} -> {}) FAILED after {} attempts: {}",
-                            row.id(), row.exchange(), row.routingKey(), attempts, e.getMessage());
+                            row.id(), row.exchange(), row.routingKey(), attempts, e.toString());
                 } else {
                     log.warn("Outbox send failed (attempt {}/{}) for event {} ({} -> {}): {}",
                             attempts, MAX_ATTEMPTS, row.id(), row.exchange(), row.routingKey(),
-                            e.getMessage());
+                            e.toString());
                 }
                 return; // halt batch: preserve event ordering
             }

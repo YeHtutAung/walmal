@@ -99,5 +99,6 @@ class OutboxRelayTest {
 
         verifyNoInteractions(rabbitTemplate);
         verify(outboxRepository, never()).delete(any());
+        verify(outboxRepository, never()).recordFailure(any(), anyInt(), any(), anyBoolean());
     }
 }
