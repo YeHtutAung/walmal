@@ -2,6 +2,7 @@ package com.walmal.infrastructure.messaging;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -55,7 +56,7 @@ public class OutboxRelay {
             try {
                 rabbitTemplate.send(row.exchange(), row.routingKey(), toMessage(row));
                 outboxRepository.delete(row.id());
-            } catch (org.springframework.amqp.AmqpException e) {
+            } catch (AmqpException e) {
                 int attempts = row.attempts() + 1;
                 boolean exhausted = attempts >= MAX_ATTEMPTS;
                 outboxRepository.recordFailure(row.id(), attempts, e.toString(), exhausted);
