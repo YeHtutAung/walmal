@@ -2,60 +2,58 @@ package com.walmal.infrastructure.messaging;
 
 import com.walmal.common.event.DomainEvent;
 import com.walmal.common.event.DomainEventPublisher;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageProperties;
+import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
+
+/**
+ * Transactional-outbox implementation of {@link DomainEventPublisher}.
+ *
+ * <p>Publishing writes a row to {@code outbox_events} in the caller's
+ * transaction (see {@link OutboxRepository#insert}); {@code OutboxRelay}
+ * delivers it to RabbitMQ asynchronously (at-least-once, ~1 s latency).
+ * If the business transaction rolls back, the row rolls back with it —
+ * consumers never see events for uncommitted state.</p>
+ *
+ * <p>The event is serialized here with the same {@code jsonMessageConverter}
+ * bean the RabbitTemplate previously used, so payloads on the wire are
+ * byte-identical to the pre-outbox format.</p>
+ *
+ * <p>A Jackson serialization failure propagates and fails the business
+ * transaction: an unserializable event is a programming error, and committing
+ * business state whose consumers can never be notified would be worse.</p>
+ */
 @Service
 public class RabbitDomainEventPublisher implements DomainEventPublisher {
 
-    private static final Logger log = LoggerFactory.getLogger(RabbitDomainEventPublisher.class);
+    private final OutboxRepository outboxRepository;
+    private final MessageConverter messageConverter;
 
-    private final RabbitTemplate rabbitTemplate;
-
-    public RabbitDomainEventPublisher(RabbitTemplate rabbitTemplate) {
-        this.rabbitTemplate = rabbitTemplate;
+    public RabbitDomainEventPublisher(OutboxRepository outboxRepository,
+                                      MessageConverter messageConverter) {
+        this.outboxRepository = outboxRepository;
+        this.messageConverter = messageConverter;
     }
 
     @Override
     public void publish(DomainEvent event) {
-        String exchange = deriveExchange(event.getEventType());
-        send(exchange, event.getEventType(), event);
+        publishInternal(event, event.getEventType());
     }
 
     @Override
     public void publish(DomainEvent event, String routingKey) {
-        String exchange = deriveExchange(event.getEventType());
-        send(exchange, routingKey, event);
+        publishInternal(event, routingKey);
     }
 
-    /**
-     * Publishes after the surrounding transaction commits, so consumers never
-     * observe events for rows that are not yet visible (or that roll back).
-     * Outside a transaction the event is sent immediately.
-     */
-    private void send(String exchange, String routingKey, DomainEvent event) {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    try {
-                        rabbitTemplate.convertAndSend(exchange, routingKey, event);
-                    } catch (RuntimeException e) {
-                        // The business transaction is already committed; a broker
-                        // failure here must not fail the caller. The event is lost
-                        // (at-most-once) — log for operator recovery.
-                        log.error("Failed to publish {} to {} after commit; event lost",
-                                routingKey, exchange, e);
-                    }
-                }
-            });
-        } else {
-            rabbitTemplate.convertAndSend(exchange, routingKey, event);
-        }
+    private void publishInternal(DomainEvent event, String routingKey) {
+        String exchange = deriveExchange(event.getEventType());
+        Message message = messageConverter.toMessage(event, new MessageProperties());
+        String payload = new String(message.getBody(), StandardCharsets.UTF_8);
+        outboxRepository.insert(UUID.randomUUID(), exchange, routingKey, payload);
     }
 
     private String deriveExchange(String eventType) {

@@ -64,5 +64,13 @@
             <artifactId>postgresql</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Required for Jackson2JsonMessageConverter to serialize Instant fields in unit tests.
+             In the full Spring Boot app context, JacksonAutoConfiguration provides this module
+             via the auto-configured ObjectMapper; test-scope makes it available here. -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>

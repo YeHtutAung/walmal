@@ -1,47 +1,40 @@
 package com.walmal.infrastructure.messaging;
 
 import com.walmal.common.event.DomainEvent;
-import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.mockito.ArgumentCaptor;
+import org.springframework.amqp.core.MessageProperties;
+import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 
-import static org.mockito.ArgumentMatchers.*;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
-@ExtendWith(MockitoExtension.class)
 class RabbitDomainEventPublisherTest {
 
-    @Mock
-    private RabbitTemplate rabbitTemplate;
-
-    @InjectMocks
+    private final OutboxRepository outboxRepository = mock(OutboxRepository.class);
+    private final Jackson2JsonMessageConverter converter = new Jackson2JsonMessageConverter();
     private RabbitDomainEventPublisher publisher;
 
-    @AfterEach
-    void clearTransactionSynchronization() {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.clearSynchronization();
-        }
+    @BeforeEach
+    void setUp() {
+        publisher = new RabbitDomainEventPublisher(outboxRepository, converter);
     }
 
     @Test
-    void should_sendToRabbitMQ_when_eventPublished() {
+    void should_insertOutboxRow_when_eventPublished() {
         DomainEvent event = new DomainEvent("order.created") {};
 
         publisher.publish(event);
 
-        verify(rabbitTemplate).convertAndSend(
-            eq("order.exchange"),
-            eq("order.created"),
-            eq(event)
-        );
+        verify(outboxRepository).insert(
+                any(UUID.class), eq("order.exchange"), eq("order.created"), any(String.class));
     }
 
     @Test
@@ -50,80 +43,25 @@ class RabbitDomainEventPublisherTest {
 
         publisher.publish(event, "order.created.priority");
 
-        verify(rabbitTemplate).convertAndSend(
-            eq("order.exchange"),
-            eq("order.created.priority"),
-            eq(event)
-        );
+        verify(outboxRepository).insert(
+                any(UUID.class), eq("order.exchange"), eq("order.created.priority"), any(String.class));
     }
 
     @Test
-    void should_deferPublishUntilAfterCommit_when_transactionActive() {
+    void should_serializePayloadIdenticallyToRabbitMessageConverter() {
         DomainEvent event = new DomainEvent("order.confirmed") {};
-        TransactionSynchronizationManager.initSynchronization();
-
-        publisher.publish(event, "order.confirmed");
-
-        // Nothing sent while the transaction is still open
-        verifyNoInteractions(rabbitTemplate);
-
-        // Simulate the transaction commit
-        for (TransactionSynchronization sync : TransactionSynchronizationManager.getSynchronizations()) {
-            sync.afterCommit();
-        }
-
-        verify(rabbitTemplate).convertAndSend(
-            eq("order.exchange"),
-            eq("order.confirmed"),
-            eq(event)
-        );
-    }
-
-    @Test
-    void should_deferDefaultRoutingKeyPublishUntilAfterCommit_when_transactionActive() {
-        DomainEvent event = new DomainEvent("order.created") {};
-        TransactionSynchronizationManager.initSynchronization();
+        // What a consumer would receive today if RabbitTemplate serialized the event:
+        String expectedJson = new String(
+                converter.toMessage(event, new MessageProperties()).getBody(),
+                StandardCharsets.UTF_8);
 
         publisher.publish(event);
 
-        verifyNoInteractions(rabbitTemplate);
-
-        for (TransactionSynchronization sync : TransactionSynchronizationManager.getSynchronizations()) {
-            sync.afterCommit();
-        }
-
-        verify(rabbitTemplate).convertAndSend(
-            eq("order.exchange"),
-            eq("order.created"),
-            eq(event)
-        );
-    }
-
-    @Test
-    void should_notPropagateSendFailure_when_publishingAfterCommit() {
-        DomainEvent event = new DomainEvent("order.confirmed") {};
-        org.mockito.Mockito.doThrow(new org.springframework.amqp.AmqpException("broker down"))
-                .when(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
-        TransactionSynchronizationManager.initSynchronization();
-
-        publisher.publish(event, "order.confirmed");
-
-        // A broker failure after commit must not fail the already-committed operation
-        for (TransactionSynchronization sync : TransactionSynchronizationManager.getSynchronizations()) {
-            org.assertj.core.api.Assertions.assertThatCode(sync::afterCommit).doesNotThrowAnyException();
-        }
-    }
-
-    @Test
-    void should_notPublish_when_transactionRollsBack() {
-        DomainEvent event = new DomainEvent("order.confirmed") {};
-        TransactionSynchronizationManager.initSynchronization();
-
-        publisher.publish(event, "order.confirmed");
-
-        // Rollback: synchronizations discarded without afterCommit
-        TransactionSynchronizationManager.clearSynchronization();
-
-        verifyNoInteractions(rabbitTemplate);
+        ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+        verify(outboxRepository).insert(any(UUID.class), any(), any(), payload.capture());
+        // Byte-identical serialization, including timestamp format (spec requirement)
+        assertThat(payload.getValue()).isEqualTo(expectedJson);
+        assertThat(payload.getValue()).contains("\"eventType\":\"order.confirmed\"");
+        assertThat(payload.getValue()).contains("\"timestamp\":");
     }
 }
