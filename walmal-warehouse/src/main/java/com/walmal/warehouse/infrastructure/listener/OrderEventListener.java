@@ -55,15 +55,7 @@ public class OrderEventListener {
 
     @RabbitListener(queues = "warehouse.order-confirmed.queue")
     @Transactional
-    public void handleOrderConfirmed(String messageBody) {
-        OrderConfirmedMessage message;
-        try {
-            message = objectMapper.readValue(messageBody, OrderConfirmedMessage.class);
-        } catch (Exception e) {
-            log.error("Failed to deserialize order.confirmed message: {}", messageBody, e);
-            return;
-        }
-
+    public void handleOrderConfirmed(OrderConfirmedMessage message) {
         log.debug("Received order.confirmed: orderId={}", message.orderId());
 
         // Idempotency guard
@@ -99,15 +91,7 @@ public class OrderEventListener {
     }
 
     @RabbitListener(queues = "warehouse.order-cancelled.queue")
-    public void handleOrderCancelled(String messageBody) {
-        OrderCancelledMessage message;
-        try {
-            message = objectMapper.readValue(messageBody, OrderCancelledMessage.class);
-        } catch (Exception e) {
-            log.error("Failed to deserialize order.cancelled message: {}", messageBody, e);
-            return;
-        }
-
+    public void handleOrderCancelled(OrderCancelledMessage message) {
         log.debug("Received order.cancelled: orderId={}", message.orderId());
 
         try {

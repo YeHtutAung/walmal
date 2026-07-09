@@ -1,6 +1,5 @@
 package com.walmal.order.infrastructure.listener;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.walmal.common.audit.AuditService;
 import com.walmal.common.event.DomainEventPublisher;
 import com.walmal.order.domain.Order;
@@ -34,15 +33,13 @@ class InventoryEventListenerTest {
     @InjectMocks
     private InventoryEventListener listener;
 
-    private ObjectMapper objectMapper;
     private UUID orderId;
     private UUID variantId;
     private UUID locationId;
 
     @BeforeEach
     void setUp() {
-        objectMapper = new ObjectMapper();
-        listener = new InventoryEventListener(orderRepository, auditService, eventPublisher, objectMapper);
+        listener = new InventoryEventListener(orderRepository, auditService, eventPublisher);
         orderId = UUID.randomUUID();
         variantId = UUID.randomUUID();
         locationId = UUID.randomUUID();
@@ -55,7 +52,7 @@ class InventoryEventListenerTest {
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
         when(orderRepository.save(any())).thenReturn(order);
 
-        listener.handleInventoryReservationReleased(messageJson("POS_PRIORITY"));
+        listener.handleInventoryReservationReleased(message("POS_PRIORITY"));
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         verify(auditService).log(any());
@@ -69,7 +66,7 @@ class InventoryEventListenerTest {
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
         when(orderRepository.save(any())).thenReturn(order);
 
-        listener.handleInventoryReservationReleased(messageJson("BUFFER_EXHAUSTED"));
+        listener.handleInventoryReservationReleased(message("BUFFER_EXHAUSTED"));
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         verify(eventPublisher).publish(any(), eq("order.cancelled"));
@@ -82,7 +79,7 @@ class InventoryEventListenerTest {
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
         when(orderRepository.save(any())).thenReturn(order);
 
-        listener.handleInventoryReservationReleased(messageJson("EXPIRED"));
+        listener.handleInventoryReservationReleased(message("EXPIRED"));
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
     }
@@ -91,7 +88,7 @@ class InventoryEventListenerTest {
     @DisplayName("should_ignore_when_conflictReasonIsCANCELLED")
     void should_ignore_when_conflictReasonIsCANCELLED() throws Exception {
         // CANCELLED means Order itself triggered the release — not an external conflict
-        listener.handleInventoryReservationReleased(messageJson("CANCELLED"));
+        listener.handleInventoryReservationReleased(message("CANCELLED"));
 
         verifyNoInteractions(orderRepository, auditService, eventPublisher);
     }
@@ -101,7 +98,7 @@ class InventoryEventListenerTest {
     void should_discard_when_orderNotFound() throws Exception {
         when(orderRepository.findById(orderId)).thenReturn(Optional.empty());
 
-        listener.handleInventoryReservationReleased(messageJson("POS_PRIORITY"));
+        listener.handleInventoryReservationReleased(message("POS_PRIORITY"));
 
         verify(orderRepository).findById(orderId);
         verifyNoInteractions(auditService, eventPublisher);
@@ -117,7 +114,7 @@ class InventoryEventListenerTest {
 
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
 
-        listener.handleInventoryReservationReleased(messageJson("POS_PRIORITY"));
+        listener.handleInventoryReservationReleased(message("POS_PRIORITY"));
 
         // Must not call cancel again or publish a second event
         verify(orderRepository).findById(orderId);
@@ -134,21 +131,12 @@ class InventoryEventListenerTest {
 
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
 
-        listener.handleInventoryReservationReleased(messageJson("POS_PRIORITY"));
+        listener.handleInventoryReservationReleased(message("POS_PRIORITY"));
 
         verify(orderRepository).findById(orderId);
         verify(orderRepository, never()).save(any());
         verifyNoInteractions(auditService, eventPublisher);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
-    }
-
-    @Test
-    @DisplayName("should_discardAndNotThrow_when_messageIsInvalidJson")
-    void should_discardAndNotThrow_when_messageIsInvalidJson() {
-        // Poison messages must not block the queue
-        listener.handleInventoryReservationReleased("not-valid-json{{{");
-
-        verifyNoInteractions(orderRepository, auditService, eventPublisher);
     }
 
     @Test
@@ -160,7 +148,7 @@ class InventoryEventListenerTest {
 
         var auditCaptor = ArgumentCaptor.forClass(com.walmal.common.audit.AuditEntry.class);
 
-        listener.handleInventoryReservationReleased(messageJson("EXPIRED"));
+        listener.handleInventoryReservationReleased(message("EXPIRED"));
 
         verify(auditService).log(auditCaptor.capture());
         var entry = auditCaptor.getValue();
@@ -178,8 +166,7 @@ class InventoryEventListenerTest {
                 new ShippingAddress("1 Main St", null, "Springfield", "US", "12345"));
     }
 
-    private String messageJson(String conflictReason) throws Exception {
-        var msg = new OrderInventoryReleasedMessage(orderId, variantId, locationId, 1, conflictReason);
-        return objectMapper.writeValueAsString(msg);
+    private OrderInventoryReleasedMessage message(String conflictReason) {
+        return new OrderInventoryReleasedMessage(orderId, variantId, locationId, 1, conflictReason);
     }
 }

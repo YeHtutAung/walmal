@@ -1,5 +1,7 @@
 package com.walmal.order.infrastructure.listener;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.util.UUID;
 
 /**
@@ -17,6 +19,7 @@ import java.util.UUID;
  * @param conflictReason string representation of the release reason (POS_PRIORITY,
  *                       BUFFER_EXHAUSTED, CANCELLED, EXPIRED)
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record OrderInventoryReleasedMessage(
         UUID orderId,
         UUID variantId,

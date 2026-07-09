@@ -1,6 +1,5 @@
 package com.walmal.order.infrastructure.listener;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.walmal.common.audit.AuditAction;
 import com.walmal.common.audit.AuditEntry;
 import com.walmal.common.audit.AuditService;
@@ -50,30 +49,18 @@ public class InventoryEventListener {
     private final OrderRepository orderRepository;
     private final AuditService auditService;
     private final DomainEventPublisher eventPublisher;
-    private final ObjectMapper objectMapper;
 
     public InventoryEventListener(OrderRepository orderRepository,
                                    AuditService auditService,
-                                   DomainEventPublisher eventPublisher,
-                                   ObjectMapper objectMapper) {
+                                   DomainEventPublisher eventPublisher) {
         this.orderRepository = orderRepository;
         this.auditService = auditService;
         this.eventPublisher = eventPublisher;
-        this.objectMapper = objectMapper;
     }
 
     @RabbitListener(queues = "order.inventory-events.queue")
     @Transactional
-    public void handleInventoryReservationReleased(String messageBody) {
-        OrderInventoryReleasedMessage message;
-        try {
-            message = objectMapper.readValue(messageBody, OrderInventoryReleasedMessage.class);
-        } catch (Exception e) {
-            log.error("Failed to deserialize inventory released message: {}", messageBody, e);
-            // Do not rethrow — a poison message must not block the queue
-            return;
-        }
-
+    public void handleInventoryReservationReleased(OrderInventoryReleasedMessage message) {
         String conflictReason = message.conflictReason();
         UUID orderId = message.orderId();
 
