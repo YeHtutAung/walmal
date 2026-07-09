@@ -2,6 +2,7 @@ package com.walmal.inventory;
 
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.data.web.config.EnableSpringDataWebSupport;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Minimal Spring Boot entry point for walmal-inventory module tests.
@@ -10,6 +11,7 @@ import org.springframework.data.web.config.EnableSpringDataWebSupport;
  */
 @SpringBootApplication
 @EnableSpringDataWebSupport(pageSerializationMode = EnableSpringDataWebSupport.PageSerializationMode.VIA_DTO)
+@EnableScheduling // in production this comes from InfrastructureAutoConfiguration (walmal-infrastructure), outside this test's component scan
 public class InventoryTestApplication {
     // No main method needed — this class exists only as a @SpringBootConfiguration
     // anchor for test slices in walmal-inventory.
