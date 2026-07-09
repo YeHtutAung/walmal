@@ -2,6 +2,8 @@ package com.walmal.infrastructure.messaging;
 
 import com.walmal.common.event.DomainEvent;
 import com.walmal.common.event.DomainEventPublisher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -9,6 +11,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 @Service
 public class RabbitDomainEventPublisher implements DomainEventPublisher {
+
+    private static final Logger log = LoggerFactory.getLogger(RabbitDomainEventPublisher.class);
 
     private final RabbitTemplate rabbitTemplate;
 
@@ -38,7 +42,15 @@ public class RabbitDomainEventPublisher implements DomainEventPublisher {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    rabbitTemplate.convertAndSend(exchange, routingKey, event);
+                    try {
+                        rabbitTemplate.convertAndSend(exchange, routingKey, event);
+                    } catch (RuntimeException e) {
+                        // The business transaction is already committed; a broker
+                        // failure here must not fail the caller. The event is lost
+                        // (at-most-once) — log for operator recovery.
+                        log.error("Failed to publish {} to {} after commit; event lost",
+                                routingKey, exchange, e);
+                    }
                 }
             });
         } else {

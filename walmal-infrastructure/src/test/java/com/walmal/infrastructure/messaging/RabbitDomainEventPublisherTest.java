@@ -100,6 +100,21 @@ class RabbitDomainEventPublisherTest {
     }
 
     @Test
+    void should_notPropagateSendFailure_when_publishingAfterCommit() {
+        DomainEvent event = new DomainEvent("order.confirmed") {};
+        org.mockito.Mockito.doThrow(new org.springframework.amqp.AmqpException("broker down"))
+                .when(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
+        TransactionSynchronizationManager.initSynchronization();
+
+        publisher.publish(event, "order.confirmed");
+
+        // A broker failure after commit must not fail the already-committed operation
+        for (TransactionSynchronization sync : TransactionSynchronizationManager.getSynchronizations()) {
+            org.assertj.core.api.Assertions.assertThatCode(sync::afterCommit).doesNotThrowAnyException();
+        }
+    }
+
+    @Test
     void should_notPublish_when_transactionRollsBack() {
         DomainEvent event = new DomainEvent("order.confirmed") {};
         TransactionSynchronizationManager.initSynchronization();
