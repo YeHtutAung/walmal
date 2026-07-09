@@ -18,6 +18,9 @@ public interface InventoryLocationService {
 
     LocationResponse getLocation(UUID locationId);
 
+    /** Returns the first active, non-buffer location; accessible without authentication. */
+    LocationResponse getDefaultLocation();
+
     LocationResponse createLocation(CreateLocationRequest request, String performedBy);
 
     /**

@@ -306,6 +306,11 @@ class PosIntegrationTest {
                     return UUID.randomUUID();
                 }
                 @Override
+                public UUID createGuestOrder(String guestEmail, List<OrderLineItem> items,
+                                             ShippingAddress shippingAddress, String currency) {
+                    return UUID.randomUUID();
+                }
+                @Override
                 public void cancelOrder(UUID orderId, UUID actorId) {}
             };
         }

@@ -32,6 +32,16 @@ public class InventoryLocationController {
         this.locationService = locationService;
     }
 
+    @GetMapping("/default")
+    @Operation(summary = "Get default active location", description = "Returns the first active non-buffer location; no authentication required")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "OK"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "No active location found")
+    })
+    public ApiResponse<LocationResponse> getDefaultLocation() {
+        return ApiResponse.ok(locationService.getDefaultLocation());
+    }
+
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF', 'WAREHOUSE_MANAGER')")
     @Operation(summary = "List all locations", description = "Returns all inventory locations")

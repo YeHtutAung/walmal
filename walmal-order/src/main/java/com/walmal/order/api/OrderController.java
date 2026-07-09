@@ -57,14 +57,12 @@ public class OrderController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Place a new order",
-               description = "Creates a new order, reserves inventory, and processes payment. " +
-                             "Returns the new order ID on success.")
+               description = "Creates a new order. Authenticated users use their session; " +
+                             "guests must supply guestEmail in the request body.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Order created"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid request"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "Business rule violation (inactive variant, insufficient stock)")
     })
     public ApiResponse<UUID> createOrder(
@@ -76,8 +74,16 @@ public class OrderController {
                 .map(i -> new OrderLineItem(i.variantId(), i.locationId(), i.quantity()))
                 .toList();
 
-        UUID orderId = orderCreationService.createOrder(
-                principal.userId(), items, address, request.currency());
+        UUID orderId;
+        if (principal != null) {
+            orderId = orderCreationService.createOrder(principal.userId(), items, address, request.currency());
+        } else {
+            if (request.guestEmail() == null || request.guestEmail().isBlank()) {
+                throw new com.walmal.common.exception.BusinessRuleException(
+                        "guestEmail is required for guest checkout");
+            }
+            orderId = orderCreationService.createGuestOrder(request.guestEmail(), items, address, request.currency());
+        }
         return ApiResponse.ok("Order created", orderId);
     }
 

@@ -49,6 +49,12 @@ public interface OrderCreationService {
                      ShippingAddress shippingAddress, String currency);
 
     /**
+     * Creates a guest order. {@code userId} is null; {@code guestEmail} identifies the buyer.
+     */
+    UUID createGuestOrder(String guestEmail, List<OrderLineItem> items,
+                          ShippingAddress shippingAddress, String currency);
+
+    /**
      * Cancels a PENDING order.
      *
      * <p>Writes to {@code audit_log} BEFORE mutating the order status.

@@ -223,7 +223,7 @@ class OrderControllerTest {
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderLineItemRequest(UUID.randomUUID(), UUID.randomUUID(), 1)),
                 new ShippingAddressRequest("1 Main St", null, "City", "US", "12345"),
-                "USD");
+                "USD", null);
 
         mockMvc.perform(post("/api/v1/orders")
                         .with(authentication(buildAuth(customer)))
@@ -234,17 +234,22 @@ class OrderControllerTest {
     }
 
     @Test
-    @DisplayName("should_return401_when_unauthenticated_createOrder")
-    void should_return401_when_unauthenticated_createOrder() throws Exception {
+    @DisplayName("should_return201_when_guestOrder_with_guestEmail")
+    void should_return201_when_guestOrder_with_guestEmail() throws Exception {
+        UUID newOrderId = UUID.randomUUID();
+        when(orderCreationService.createGuestOrder(any(), any(), any(), any()))
+                .thenReturn(newOrderId);
+
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderLineItemRequest(UUID.randomUUID(), UUID.randomUUID(), 1)),
                 new ShippingAddressRequest("1 Main St", null, "City", "US", "12345"),
-                "USD");
+                "USD", "guest@example.com");
 
         mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true));
     }
 
     @Test
@@ -259,7 +264,7 @@ class OrderControllerTest {
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderLineItemRequest(UUID.randomUUID(), UUID.randomUUID(), 1)),
                 new ShippingAddressRequest("1 Main St", null, "City", "US", "12345"),
-                "USD");
+                "USD", null);
 
         mockMvc.perform(post("/api/v1/orders")
                         .with(authentication(buildAuth(customer)))

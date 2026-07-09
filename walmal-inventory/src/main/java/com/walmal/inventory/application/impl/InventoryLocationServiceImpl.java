@@ -45,6 +45,16 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public LocationResponse getDefaultLocation() {
+        return locationRepo.findByActiveTrue().stream()
+                .filter(l -> !l.isBufferLocation())
+                .findFirst()
+                .map(this::toResponse)
+                .orElseThrow(() -> new ResourceNotFoundException("InventoryLocation", null));
+    }
+
+    @Override
     @Transactional
     public LocationResponse createLocation(CreateLocationRequest request, String performedBy) {
         InventoryLocation location = new InventoryLocation(

@@ -78,8 +78,20 @@ public class OrderCreationServiceImpl implements OrderCreationService {
 
     @Override
     @Transactional
+    public UUID createGuestOrder(String guestEmail, List<OrderLineItem> items,
+                                  ShippingAddress shippingAddress, String currency) {
+        return doCreateOrder(null, guestEmail, items, shippingAddress, currency);
+    }
+
+    @Override
+    @Transactional
     public UUID createOrder(UUID userId, List<OrderLineItem> items,
                             ShippingAddress shippingAddress, String currency) {
+        return doCreateOrder(userId, null, items, shippingAddress, currency);
+    }
+
+    private UUID doCreateOrder(UUID userId, String guestEmail, List<OrderLineItem> items,
+                                ShippingAddress shippingAddress, String currency) {
 
         // Step 1 & 2: validate variants and collect snapshots
         List<LineItemResolved> resolved = new ArrayList<>();
@@ -107,13 +119,13 @@ public class OrderCreationServiceImpl implements OrderCreationService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         // Step 5: persist Order (PENDING)
-        Order order = new Order(userId, currency, totalAmount, shippingAddress);
+        Order order = new Order(userId, guestEmail, currency, totalAmount, shippingAddress);
         order = orderRepository.save(order);
         UUID orderId = order.getId();
 
         // Attach items (cascade will persist them)
         for (LineItemResolved r : resolved) {
-            new OrderItem(
+            OrderItem item = new OrderItem(
                     order,
                     r.lineItem().variantId(),
                     r.variant().productName(),
@@ -123,6 +135,7 @@ public class OrderCreationServiceImpl implements OrderCreationService {
                     currency,
                     r.subtotal(),
                     r.lineItem().locationId());
+            order.addItem(item);
         }
         order = orderRepository.save(order);
 

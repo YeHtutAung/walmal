@@ -43,8 +43,11 @@ public class Order {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "user_id", nullable = false)
-    private UUID userId;                     // cross-module UUID ref — no FK
+    @Column(name = "user_id", nullable = true)
+    private UUID userId;                     // cross-module UUID ref — no FK; null for guest orders
+
+    @Column(name = "guest_email", length = 320)
+    private String guestEmail;               // set only when userId is null (guest checkout)
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
@@ -86,7 +89,12 @@ public class Order {
     protected Order() {}
 
     public Order(UUID userId, String currency, BigDecimal totalAmount, ShippingAddress shippingAddress) {
+        this(userId, null, currency, totalAmount, shippingAddress);
+    }
+
+    public Order(UUID userId, String guestEmail, String currency, BigDecimal totalAmount, ShippingAddress shippingAddress) {
         this.userId = userId;
+        this.guestEmail = guestEmail;
         this.currency = currency;
         this.totalAmount = totalAmount;
         this.shippingAddress = shippingAddress;
@@ -157,6 +165,7 @@ public class Order {
     public UUID getId() { return id; }
     public int getItemCount() { return itemCount; }
     public UUID getUserId() { return userId; }
+    public String getGuestEmail() { return guestEmail; }
     public OrderStatus getStatus() { return status; }
     public String getCurrency() { return currency; }
     public BigDecimal getTotalAmount() { return totalAmount; }
@@ -168,8 +177,7 @@ public class Order {
     public Instant getUpdatedAt() { return updatedAt; }
     public List<OrderItem> getItems() { return Collections.unmodifiableList(items); }
 
-    /** Package-visible setter used by {@link OrderItem} constructor via JPA cascade. */
-    void addItem(OrderItem item) {
+    public void addItem(OrderItem item) {
         this.items.add(item);
     }
 }
