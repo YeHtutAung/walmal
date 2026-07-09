@@ -5,6 +5,7 @@ import com.walmal.common.event.DomainEventPublisher;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -34,7 +35,7 @@ public class RabbitDomainEventPublisher implements DomainEventPublisher {
     private final MessageConverter messageConverter;
 
     public RabbitDomainEventPublisher(OutboxRepository outboxRepository,
-                                      MessageConverter messageConverter) {
+                                      @Qualifier("jsonMessageConverter") MessageConverter messageConverter) {
         this.outboxRepository = outboxRepository;
         this.messageConverter = messageConverter;
     }
