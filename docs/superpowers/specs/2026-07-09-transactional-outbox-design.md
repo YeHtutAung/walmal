@@ -87,15 +87,14 @@ the table stays near-empty in steady state and needs no purge job.
   4. On send exception: increment `attempts`, set `last_error`, and **stop the
      batch** — later events must not overtake earlier ones (e.g. `order.confirmed`
      before `order.cancelled` for the same order).
-  5. If `attempts` reaches 10: set `status='FAILED'`, log at ERROR with the event
+  5. If `attempts` reaches 60: set `status='FAILED'`, log at ERROR with the event
      id and routing key. FAILED rows are skipped by the poll query, so one poison
      row cannot block the stream forever; rows failing due to a broker outage all
-     recover together when the broker returns (attempts stay well below 10 for
-     realistic outages of < ~10 s; longer outages push attempts up once per tick,
-     so the cap also bounds retry noise — 10 attempts ≈ 10 s of outage per row
-     before it parks as FAILED).
+     recover together when the broker returns. Attempts increment once per tick,
+     so 60 attempts ≈ 1 minute of continuous outage per row before it parks as
+     FAILED.
 
-**Cap trade-off (explicit):** a broker outage longer than ~10 s will park rows as
+**Cap trade-off (explicit):** a broker outage longer than ~1 minute will park rows as
 FAILED. Recovery is a one-line SQL `UPDATE outbox_events SET status='PENDING',
 attempts=0 WHERE status='FAILED'` by an operator. This is accepted for MVP; the
 alternative (exponential backoff / `next_attempt_at`) is deferred as YAGNI.
@@ -135,7 +134,7 @@ TDD throughout (red → green per test):
 2. **Relay unit tests** (new `OutboxRelayTest`, mocked JdbcTemplate/RabbitTemplate):
    - pending row → sent with correct exchange/key/contentType → deleted
    - send failure → attempts incremented, last_error set, batch halted (later rows untouched)
-   - attempts hitting 10 → status FAILED + ERROR log, row no longer selected
+   - attempts hitting 60 → status FAILED + ERROR log, row no longer selected
    - empty poll → no broker interaction
 3. **Live verification** (after JAR rebuild):
    - guest checkout → confirmation email arrives (regression)
