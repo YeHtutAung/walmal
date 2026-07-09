@@ -17,6 +17,7 @@ import com.walmal.order.domain.OrderStatus;
 import com.walmal.warehouse.application.WarehouseFulfillmentService;
 import com.walmal.warehouse.application.dto.FulfillmentDetailDto;
 import com.walmal.warehouse.domain.FulfillmentStatus;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -83,6 +84,17 @@ class WarehouseIntegrationTest {
             UUID.fromString("c0000000-0000-0000-0000-000000000001");
     private static final UUID SEEDED_USER_ID =
             UUID.fromString("a0000000-0000-0000-0000-000000000001");
+
+    @BeforeEach
+    void resetSeededFulfillment() {
+        // Tests share the single V7-seeded fulfillment and mutate its state machine.
+        // Reset the mutated columns (status, notes) so every test starts from PENDING
+        // regardless of method execution order.
+        jdbcTemplate.update(
+                "UPDATE warehouse_fulfillments SET status = 'PENDING', notes = NULL, updated_at = NOW() " +
+                "WHERE order_id = ?",
+                SEEDED_ORDER_ID);
+    }
 
     // ── Scenario 1: get seeded fulfillment ────────────────────────────────────
 
