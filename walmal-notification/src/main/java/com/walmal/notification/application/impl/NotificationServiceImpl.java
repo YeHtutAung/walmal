@@ -63,6 +63,29 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
+    public void sendGuestEmailNotification(String recipientEmail, String subject, String body,
+                                           String triggerEvent, UUID referenceId) {
+        NotificationLog log = new NotificationLog(recipientEmail, NotificationType.EMAIL,
+                subject, body, triggerEvent, referenceId);
+        notificationLogRepository.save(log);
+
+        try {
+            Notification notification = new Notification(
+                    recipientEmail,
+                    subject,
+                    body,
+                    Notification.NotificationType.EMAIL
+            );
+            emailChannel.send(notification);
+            log.markSent();
+            notificationLogRepository.save(log);
+        } catch (Exception e) {
+            log.markFailed(e.getMessage());
+            notificationLogRepository.save(log);
+        }
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public Page<NotificationSummaryDto> listNotificationsForUser(UUID userId, Pageable pageable) {
         return notificationLogRepository.findByRecipientIdOrderByCreatedAtDesc(userId, pageable)

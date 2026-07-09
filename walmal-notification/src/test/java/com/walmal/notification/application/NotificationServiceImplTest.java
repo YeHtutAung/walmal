@@ -28,7 +28,9 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -105,6 +107,38 @@ class NotificationServiceImplTest {
         ArgumentCaptor<NotificationLog> captor = ArgumentCaptor.forClass(NotificationLog.class);
         verify(notificationLogRepository, times(2)).save(captor.capture());
         assertThat(captor.getAllValues().get(1).getStatus()).isEqualTo(NotificationStatus.SENT);
+    }
+
+    @Test
+    @DisplayName("should_persistEmailKeyedLog_when_guestNotificationSent")
+    void should_persistEmailKeyedLog_when_guestNotificationSent() {
+        UUID referenceId = UUID.randomUUID();
+
+        service.sendGuestEmailNotification("guest@example.com", "Subj", "Body", "order.confirmed", referenceId);
+
+        ArgumentCaptor<NotificationLog> captor = ArgumentCaptor.forClass(NotificationLog.class);
+        verify(notificationLogRepository, atLeastOnce()).save(captor.capture());
+        NotificationLog saved = captor.getValue();
+        assertThat(saved.getRecipientId()).isNull();
+        assertThat(saved.getRecipientEmail()).isEqualTo("guest@example.com");
+        assertThat(saved.getStatus()).isEqualTo(NotificationStatus.SENT);
+        verify(emailChannel).send(argThat(n -> n.recipient().equals("guest@example.com")));
+        verifyNoInteractions(inAppChannel);
+    }
+
+    @Test
+    @DisplayName("should_markFailedWithoutRethrow_when_guestEmailChannelThrows")
+    void should_markFailedWithoutRethrow_when_guestEmailChannelThrows() {
+        UUID referenceId = UUID.randomUUID();
+        doThrow(new RuntimeException("smtp down")).when(emailChannel).send(any());
+
+        assertThatCode(() -> service.sendGuestEmailNotification(
+                "guest@example.com", "Subj", "Body", "order.confirmed", referenceId))
+            .doesNotThrowAnyException();   // no rethrow => RabbitMQ acks, no redelivery loop
+
+        ArgumentCaptor<NotificationLog> captor = ArgumentCaptor.forClass(NotificationLog.class);
+        verify(notificationLogRepository, atLeastOnce()).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(NotificationStatus.FAILED);
     }
 
     @Test
