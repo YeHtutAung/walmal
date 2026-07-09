@@ -74,6 +74,8 @@ void sendGuestEmailNotification(String recipientEmail, String subject, String bo
 
 EMAIL-only. Persists a `NotificationLog` with `recipientEmail` set and `recipientId` null, then dispatches through the email channel with the guest address as the recipient, using the same try/catch → `markSent()` / `markFailed()` structure as `sendNotification`.
 
+**Email channel contract note:** the `Notification` value object's recipient field currently receives `recipientId.toString()` (a UUID string) on the user path. Planning must confirm how `emailNotificationChannel.send()` resolves that to an address — the guest path passes a raw email address in the same field, and the channel must handle both (or the guest path must bypass the user-resolution step).
+
 **Idempotency / redelivery safety (verified):** channel-send failures are caught and recorded as `NotificationStatus.FAILED` without rethrowing, so the RabbitMQ listener acks and there is no redelivery — a transient SMTP failure yields exactly one FAILED row and zero duplicate emails. (The original loop happened because the constraint violation occurred in the log save *before* the try block; with the V14 constraint satisfied, that save succeeds.) Deliverability failures are visible as FAILED rows in `notification_log`, same as existing user-email failures.
 
 ### 4. Handlers (`NotificationEventHandlerServiceImpl`)
