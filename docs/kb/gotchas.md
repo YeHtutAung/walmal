@@ -4,11 +4,7 @@
 
 **Symptom:** config changes (rate limits, CORS, profile marker) appear to have no effect after restart.
 **Cause:** the running JAR packages `application-test.yml` at build time; working-tree edits are invisible to it.
-**Fix:** always rebuild after resource changes:
-```bash
-./mvnw -pl walmal-app -am -DskipTests clean package
-```
-Historical examples: old `application-test.yml` with 200/min limits; missing `<include defaults.xml>` in `logback-spring.xml` caused `%clr` startup crash — both required a JAR rebuild to take effect.
+**Fix:** rebuild the JAR — command and details in `docs/kb/testing.md` (Stale JAR Rule).
 
 ## Maven `-pl` Without `-am`
 
@@ -23,7 +19,7 @@ Running `./mvnw -pl <module> test` without `-am` compiles against stale `walmal-
 
 ## Testcontainers + Docker 29.x
 
-Docker Engine 29.x breaks Testcontainers 1.20.4 (`/info` HTTP 400). Add `-Dapi.version=1.44` to all integration-test Maven runs. See `docs/kb/testing.md`.
+Integration tests fail against Docker Engine 29.x — workaround flag and details in `docs/kb/testing.md` (Testcontainers Workaround).
 
 ## k6 Performance Tests (environment note)
 
@@ -43,11 +39,3 @@ Docker Engine 29.x breaks Testcontainers 1.20.4 (`/info` HTTP 400). Add `-Dapi.v
 - `!` in curl `-d '...'` bodies is rewritten to `\!` by bash history expansion → "Malformed request body". Write JSON to a temp file and use `--data-binary @"C:/path/file.json"`.
 - `/E`-style Windows flags become `E:/` paths in Cygwin; `cmd /c` also breaks. Put the command in a `.cmd` file and invoke via `powershell -NoProfile -Command "& 'C:/path/file.cmd'"`.
 - `/tmp` differs between Windows Python and Cygwin tools; use `C:/Users/.../AppData/Local/Temp` for cross-tool temp files.
-
-## Publish-Before-Commit Race (historical — fixed)
-
-`RabbitDomainEventPublisher` previously published mid-transaction; in-process consumers read DB before commit → empty guest-email lookup → silent skip. Fixed: `convertAndSend` now defers to `TransactionSynchronization.afterCommit`. Send failures caught+logged (at-most-once).
-
-## Listener String-Param Bug (historical — fixed)
-
-`OrderEventListener` and `InventoryEventListener` formerly took `String messageBody` → Jackson `MismatchedInputException` → every message dropped (fulfillments never auto-created). Fixed by accepting local POJO records directly.

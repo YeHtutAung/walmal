@@ -26,7 +26,7 @@
 - Tokens: signed HS256 JWTs, base64url-encoded (requires padding + char-swap before `atob()`).
 - Access-token TTL: **15 minutes** (configured `walmal.jwt.access-token-expire-minutes: 15` in `application.yml`; env override `WALMAL_JWT_SECRET`).
 - Refresh tokens: single-use rotating; stored server-side in Redis.
-- Roles (enum `com.walmal.auth.domain.Role`): `CUSTOMER`, `ADMIN`, `STAFF`, `WAREHOUSE_MANAGER`, `WAREHOUSE_STAFF`, `POS_OPERATOR`.
+- Roles (enum `com.walmal.auth.domain.Role`): `ADMIN`, `STAFF`, `CASHIER`, `CUSTOMER`, `WAREHOUSE_MANAGER`, `WAREHOUSE_STAFF`, `POS_OPERATOR`.
 - Per-client storage:
   - walmal-store: httpOnly `walmal-rt` cookie set by Next.js proxy routes (`/api/auth/*`); access token in Zustand memory only.
   - walmal-admin: `accessToken` + `refreshToken` in localStorage (known risk — see `walmal-admin/docs/kb/gotchas.md`).

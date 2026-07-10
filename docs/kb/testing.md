@@ -35,13 +35,7 @@ Testcontainers version: `1.20.4` (property `testcontainers.version` in root `pom
 
 ## Test Profile (`application-test.yml`)
 
-Located at `walmal-app/src/main/resources/application-test.yml`. Activated with `-Dspring.profiles.active=test`.
-
-Key overrides:
-- `walmal.rate-limit.authenticated-limit: 100000` (effectively unlimited)
-- `walmal.rate-limit.unauthenticated-limit: 100000`
-- CORS includes `http://localhost:3001`
-- `info.walmal.profile: test` — exposed at `/actuator/info`; used by E2E `global-setup.ts` to detect stale JARs
+Located at `walmal-app/src/main/resources/application-test.yml`. Activated with `-Dspring.profiles.active=test`. Its overrides (rate limits, CORS, profile marker) are cross-repo facts — see `docs/kb/SYSTEM.md` "Test profile".
 
 ## Stale JAR Rule
 
