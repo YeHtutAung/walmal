@@ -111,15 +111,17 @@ class ProductControllerTest {
     @WithMockUser(username = "customer1", roles = "CUSTOMER")
     void should_return200WithProductDetail_when_productExists() throws Exception {
         UUID productId = UUID.randomUUID();
+        UUID categoryId = UUID.randomUUID();
         ProductDetailDto dto = new ProductDetailDto(
                 productId, "Test Product", "test-product", "TestBrand",
-                "A description", "ACTIVE", "Electronics", null, null, null);
+                "A description", "ACTIVE", categoryId, "Electronics", null, null, null);
 
         when(catalogService.getProductDetails(productId)).thenReturn(dto);
 
         mockMvc.perform(get("/api/v1/product/{productId}", productId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.name").value("Test Product"));
+                .andExpect(jsonPath("$.data.name").value("Test Product"))
+                .andExpect(jsonPath("$.data.categoryId").value(categoryId.toString()));
     }
 
     @Test
@@ -163,7 +165,7 @@ class ProductControllerTest {
                 categoryId, "New Product", "new-product", null, null);
 
         ProductDetailDto created = new ProductDetailDto(
-                UUID.randomUUID(), "New Product", "new-product", null, null, "ACTIVE", "Electronics", null, null, null);
+                UUID.randomUUID(), "New Product", "new-product", null, null, "ACTIVE", categoryId, "Electronics", null, null, null);
 
         when(managementService.createProduct(any(), anyString())).thenReturn(created);
 
@@ -185,7 +187,7 @@ class ProductControllerTest {
                 UUID.randomUUID(), "Staff Product", "staff-product", null, null);
 
         ProductDetailDto created = new ProductDetailDto(
-                UUID.randomUUID(), "Staff Product", "staff-product", null, null, "ACTIVE", "TestCat", null, null, null);
+                UUID.randomUUID(), "Staff Product", "staff-product", null, null, "ACTIVE", null, "TestCat", null, null, null);
 
         when(managementService.createProduct(any(), anyString())).thenReturn(created);
 

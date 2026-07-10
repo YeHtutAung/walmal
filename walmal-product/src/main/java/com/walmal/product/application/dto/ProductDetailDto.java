@@ -13,6 +13,7 @@ public record ProductDetailDto(
         String brand,
         String description,
         String status,
+        UUID categoryId,
         String categoryName,
         String primaryImageUrl,
         BigDecimal lowestPrice,

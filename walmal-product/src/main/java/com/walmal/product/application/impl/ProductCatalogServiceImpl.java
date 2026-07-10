@@ -175,6 +175,7 @@ public class ProductCatalogServiceImpl implements ProductCatalogService {
                 p.getBrand(),
                 p.getDescription(),
                 p.getStatus().name(),
+                p.getCategory() != null ? p.getCategory().getId() : null,
                 categoryName,
                 primaryImageUrl,
                 lowestPrice,
