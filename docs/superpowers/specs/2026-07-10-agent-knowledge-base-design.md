@@ -37,12 +37,15 @@ walmal/                          (Spring Boot modular monolith — hub)
 
 walmal-store/                    (Next.js App Router storefront)
   AGENTS.md                      MODIFY: add KB index + maintenance rule + SYSTEM.md pointer
+                                 (CLAUDE.md already contains only `@AGENTS.md` and loads it;
+                                 leave CLAUDE.md unchanged — the rule goes in AGENTS.md only)
   docs/kb/architecture.md        NEW
   docs/kb/conventions.md         NEW
   docs/kb/testing.md             NEW
   docs/kb/gotchas.md             NEW
 
-walmal-admin/                    (Vite/React/Refine admin SPA)
+walmal-admin/                    (Vite/React/Refine admin SPA — used with Claude Code
+                                 only, so CLAUDE.md is the correct filename; no AGENTS.md)
   CLAUDE.md                      NEW: KB index + maintenance rule + SYSTEM.md pointer
   docs/kb/architecture.md        NEW
   docs/kb/conventions.md         NEW
@@ -71,7 +74,8 @@ walmal-admin/                    (Vite/React/Refine admin SPA)
 
 ### walmal/docs/kb/SYSTEM.md (cross-repo, canonical)
 - Repo map: three repos, their roles, absolute workspace paths, default ports
-  (backend 8080, store 3000/3001-test, admin 5173).
+  (backend 8080, store 3000/3001-test, admin Vite default 5173 — not pinned in
+  `vite.config.ts`, note this in SYSTEM.md so agents verify before relying on it).
 - Infrastructure services: postgres 5432, redis 6379, rabbitmq 5672, minio
   9000, mailhog 1025 (docker compose in walmal).
 - Auth contract: JWT (base64url), 15-min access tokens, single-use rotating
@@ -92,7 +96,9 @@ walmal-admin/                    (Vite/React/Refine admin SPA)
 ### walmal/docs/kb/*
 - `architecture.md`: 10 Maven modules one-liner each; module-communication
   rules (service interfaces, events via outbox); key paths (migrations dir,
-  OutboxRelay, RateLimitFilter); Flyway V1–V15 one-liner map.
+  OutboxRelay, RateLimitFilter); Flyway one-liner map V1–V{n} (count against
+  `walmal-app/src/main/resources/db/migration/` at write time — do not trust
+  this spec's number).
 - `conventions.md`: cross-module access rules (distilled from CLAUDE.md, not
   duplicated — link), ProblemDetail error responses, naming, ADR index.
 - `testing.md`: unit vs `@Tag("integration")`; exact Maven commands incl.
@@ -104,11 +110,14 @@ walmal-admin/                    (Vite/React/Refine admin SPA)
 
 ### walmal-store/docs/kb/*
 - `architecture.md`: app-route map (pages + API routes incl. auth proxies,
-  payment-intent, minio proxy, legacy mock /api/v1 routes), Zustand stores,
-  middleware, Stripe CardElement flow, rate limiter.
-- `conventions.md`: error shapes consumed (`detail` vs `{code,message}` vs
-  `{error}`), API client behavior, component/store patterns, Next.js version
-  warning (read node_modules/next/dist/docs — already in AGENTS.md, linked).
+  payment-intent, minio proxy), Zustand stores, middleware, Stripe
+  CardElement flow, rate limiter. The mock /api/v1 routes are documented in
+  one line flagged "inactive/legacy — not used by tests or the real app";
+  deleting them is routine cleanup that updates this file.
+- `conventions.md`: how `src/lib/api/client.ts` parses error bodies (parsing
+  precedence only — the shape definitions themselves live in SYSTEM.md, link
+  to it), component/store patterns, Next.js version warning (read
+  node_modules/next/dist/docs — already in AGENTS.md, linked).
 - `testing.md`: vitest layout; Playwright two-webServer setup, port-3001
   rule, `.env.test.local` role, global-setup drift checks, Stripe iframe
   test technique, test credentials pointer.
@@ -141,7 +150,8 @@ unfamiliar area.
 endpoint, contract, config, or workflow MUST update the affected
 `docs/kb/*.md` file(s) in the same commit. If a cross-repo contract changed
 (auth, error bodies, events, ports, env vars), also update
-`walmal/docs/kb/SYSTEM.md` in the walmal repo.
+`walmal/docs/kb/SYSTEM.md` in the walmal repo — in the same work session;
+cross-repo commit atomicity is not required.
 
 **Review check:** every code review must answer: "Does this change require a
 KB update, and was it made?" Refactors and test-only changes that alter no
