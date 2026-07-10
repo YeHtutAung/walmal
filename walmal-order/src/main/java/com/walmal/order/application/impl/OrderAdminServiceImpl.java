@@ -41,8 +41,11 @@ public class OrderAdminServiceImpl implements OrderAdminService {
     }
 
     @Override
-    public Page<OrderAdminSummaryDto> listAllOrders(Pageable pageable) {
-        return orderRepository.findAll(pageable)
+    public Page<OrderAdminSummaryDto> listAllOrders(OrderStatus status, Pageable pageable) {
+        Page<Order> page = status != null
+                ? orderRepository.findByStatus(status, pageable)
+                : orderRepository.findAll(pageable);
+        return page
                 .map(o -> new OrderAdminSummaryDto(
                         o.getId(), o.getUserId(), o.getStatus(),
                         o.getTotalAmount(), o.getCurrency(),

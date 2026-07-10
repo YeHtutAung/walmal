@@ -176,8 +176,9 @@ public class OrderController {
     @Operation(summary = "List all orders (admin)",
                description = "Returns a paginated list of all orders across all users. Admin and Staff only.")
     public ApiResponse<Page<OrderAdminSummaryDto>> listAllOrders(
+            @RequestParam(required = false) OrderStatus status,
             @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
-        return ApiResponse.ok(orderAdminService.listAllOrders(pageable));
+        return ApiResponse.ok(orderAdminService.listAllOrders(status, pageable));
     }
 
     @PatchMapping("/{orderId}/status")

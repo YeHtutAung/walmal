@@ -41,6 +41,9 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -147,6 +150,39 @@ class OrderControllerTest {
 
         mockMvc.perform(get("/api/v1/orders/{orderId}", orderId))
                 .andExpect(status().isNotFound());
+    }
+
+    // ── Admin list ────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should_passStatusFilterToService_when_adminListsOrdersWithStatusParam")
+    void should_passStatusFilterToService_when_adminListsOrdersWithStatusParam() throws Exception {
+        AuthenticatedPrincipal admin = new AuthenticatedPrincipal(UUID.randomUUID(), "admin", "ADMIN");
+        when(orderAdminService.listAllOrders(eq(OrderStatus.CANCELLED), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/api/v1/orders/admin")
+                        .param("status", "CANCELLED")
+                        .with(authentication(buildAuth(admin))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(orderAdminService).listAllOrders(eq(OrderStatus.CANCELLED), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("should_passNullStatusToService_when_adminListsOrdersWithoutStatusParam")
+    void should_passNullStatusToService_when_adminListsOrdersWithoutStatusParam() throws Exception {
+        AuthenticatedPrincipal admin = new AuthenticatedPrincipal(UUID.randomUUID(), "admin", "ADMIN");
+        when(orderAdminService.listAllOrders(isNull(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/api/v1/orders/admin")
+                        .with(authentication(buildAuth(admin))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(orderAdminService).listAllOrders(isNull(), any(Pageable.class));
     }
 
     // ── GET order status ──────────────────────────────────────────────────────

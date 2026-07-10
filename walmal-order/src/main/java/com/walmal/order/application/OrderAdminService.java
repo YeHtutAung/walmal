@@ -16,9 +16,12 @@ import java.util.UUID;
 public interface OrderAdminService {
 
     /**
-     * Returns a paginated list of all orders across all users.
+     * Returns a paginated list of all orders across all users,
+     * optionally filtered by status.
+     *
+     * @param status optional status filter; {@code null} returns all orders
      */
-    Page<OrderAdminSummaryDto> listAllOrders(Pageable pageable);
+    Page<OrderAdminSummaryDto> listAllOrders(OrderStatus status, Pageable pageable);
 
     /**
      * Applies a manual status transition to an order.

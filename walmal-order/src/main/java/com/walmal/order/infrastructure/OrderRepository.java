@@ -32,6 +32,12 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     Optional<Order> findByIdAndStatus(UUID id, OrderStatus status);
 
     /**
+     * Retrieves all orders with the given status, paginated.
+     * Backs the admin list's status filter.
+     */
+    Page<Order> findByStatus(OrderStatus status, Pageable pageable);
+
+    /**
      * Guest email lookup for the notification module. The {@code userId IS NULL}
      * predicate guarantees registered-user orders return empty by construction.
      */
