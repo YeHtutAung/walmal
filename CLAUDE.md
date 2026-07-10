@@ -217,3 +217,22 @@ Custom slash commands in `.claude/commands/`:
 |---|---|
 | `/build-module {module_name}` | Scaffold a new bounded context module end-to-end |
 | `/validate-boundaries` | Check module boundary integrity, SOLID compliance, and DoD status |
+
+---
+
+## Knowledge base — MUST keep current
+
+Agent-facing project knowledge lives in `docs/kb/` (cross-repo contracts:
+`docs/kb/SYSTEM.md`). Read the relevant file before working in an
+unfamiliar area.
+
+**Maintenance rule:** any change that adds, updates, or removes a feature,
+endpoint, contract, config, or workflow MUST update the affected
+`docs/kb/*.md` file(s) in the same commit. If a cross-repo contract changed
+(auth, error bodies, events, ports, env vars), also update
+`docs/kb/SYSTEM.md` in the walmal repo — in the same work session;
+cross-repo commit atomicity is not required.
+
+**Review check:** every code review must answer: "Does this change require a
+KB update, and was it made?" Refactors and test-only changes that alter no
+documented fact need none.
