@@ -40,7 +40,9 @@ KB update, and was it made?" Refactors and test-only changes that alter no
 documented fact need none.
 ```
 
-In walmal-store and walmal-admin, `docs/kb/` in the first sentence refers to the local repo's KB, and the SYSTEM.md path stays as written (it is in the walmal repo).
+Intro-sentence adaptation per repo:
+- **walmal** (Task 1): SYSTEM.md is local — the parenthetical reads `(cross-repo contracts: docs/kb/SYSTEM.md)` and the later rule sentence reads "also update `docs/kb/SYSTEM.md`" (drop the `walmal/` prefix throughout).
+- **walmal-store / walmal-admin** (Tasks 2–3): keep the block exactly as written above — `docs/kb/` means the local repo's KB and the `walmal/docs/kb/SYSTEM.md` path stays (it lives in the walmal repo).
 
 ---
 
@@ -50,7 +52,7 @@ For every bullet you write, verify against the code before committing:
 - **Paths**: `ls` / Glob the exact path. A path that 404s may not be written.
 - **Commands**: prefer running them (read-only ones); if too heavy (full test suites), verify the script/config they reference exists and flags match documentation (e.g., check `pom.xml`/`package.json`/`playwright.config.ts`).
 - **Numbers** (ports, limits, versions, migration count): read them from the config/source file, cite nothing from memory or from this plan without checking.
-- **Names** (env vars, cookie names, routing keys, roles): grep the source.
+- **Names** (env vars, cookie names, routing keys, roles, Java class names, provider/module file names): grep the source — class and provider names need the same grep treatment as env vars.
 
 If a fact in this plan's outline turns out wrong, write the KB from the code (code wins) and note the correction in your report.
 
@@ -66,8 +68,8 @@ If a fact in this plan's outline turns out wrong, write the KB from the code (co
 
 - [ ] **Step 2: Write `docs/kb/SYSTEM.md`** covering exactly (verify each):
   - Repo map: 3 repos, roles, workspace paths, ports — backend 8080; store dev 3000 / E2E 3001; admin Vite default 5173 **annotated as "not pinned in vite.config.ts — verify before relying on it"**.
-  - Infra services + ports from `docker-compose.yml`: postgres 5432, redis 6379, rabbitmq 5672 (+15672 mgmt if exposed — check), minio 9000 (+console port — check), mailhog 1025 (+8025 UI — check).
-  - Auth contract: JWT base64url; access-token TTL (read from config — do not assume 15 min); single-use rotating refresh tokens; roles (grep the backend enum/migrations: CUSTOMER, ADMIN, and admin-SPA roles STAFF/WAREHOUSE_*/POS_OPERATOR — verify exact names); per-client storage: store = httpOnly `walmal-rt` cookie via proxy routes, admin = localStorage.
+  - Infra services + ports from `docker-compose.yml`: postgres 5432, redis 6379, rabbitmq 5672, minio 9000, mailhog 1025. Management/UI ports (rabbitmq mgmt, minio console, mailhog UI) are an **approved extension beyond the spec's list** — include them only if exposed in `docker-compose.yml`, one line total.
+  - Auth contract: JWT base64url; access-token TTL — the spec states 15 min; confirm against backend config and write the actual configured value (code wins); single-use rotating refresh tokens; roles (grep the backend enum/migrations: CUSTOMER, ADMIN, and admin-SPA roles STAFF/WAREHOUSE_*/POS_OPERATOR — verify exact names); per-client storage: store = httpOnly `walmal-rt` cookie via proxy routes, admin = localStorage.
   - Error-body contract (canonical home): Spring → RFC 9457 ProblemDetail (`detail`); store auth proxies → `{ code, message }`; store payment-intent → `{ error }`; clients parse field errors > message > detail.
   - Event contract: transactional outbox (`outbox_events`) → OutboxRelay → RabbitMQ; routing keys `{module}.{event}`; at-most-once after-commit; FAILED-row recovery → link `docs/DR_PLAN.md` (Scenario 6).
   - Env matrix: names + purpose only (WALMAL_JWT_SECRET, SPRING_DATA_REDIS_PASSWORD, NEXT_PUBLIC_API_URL, STRIPE keys, RATE_LIMIT_*, VITE_API_BASE_URL...) — never values. Test-profile behavior: `application-test.yml` = 100k rate limits, CORS :3001, `info.walmal.profile=test` marker.
@@ -100,6 +102,8 @@ git commit -m "docs(kb): add agent knowledge base — SYSTEM.md, repo KB, mainte
 - Create: `docs/kb/architecture.md`, `docs/kb/conventions.md`, `docs/kb/testing.md`, `docs/kb/gotchas.md`
 - Modify: `AGENTS.md` (append KB block; do NOT touch `CLAUDE.md` — it only contains `@AGENTS.md`)
 
+**Prerequisite:** Task 1 must be committed first — do not begin until `C:/YHA/006_Claude_Workspace/walmal/docs/kb/SYSTEM.md` exists on disk.
+
 - [ ] **Step 1: Read the spec** (in the walmal repo) and `walmal/docs/kb/SYSTEM.md` as written by Task 1 — do not restate any fact that lives there.
 
 - [ ] **Step 2: Write `docs/kb/architecture.md`**: page-route map from `src/app/` (route groups `(account)`, `(checkout)`, `(shop)`, login/register/order-confirmation); API routes — auth proxies (login/register/refresh/logout + `walmal-rt` cookie mechanics summary, details in SYSTEM.md), `payment-intent` (Stripe, rate-limited), `minio/[...path]` proxy; ONE line for mock `/api/v1/*` routes flagged "inactive/legacy — not used by tests or the real app; deletion is routine cleanup that updates this file"; Zustand stores (`auth-store`, `cart-store` w/ persist key `walmal-cart`); `src/middleware.ts` presence-cookie guard; Stripe CardElement flow; `src/lib/rate-limit.ts` one-liner with limits + env names.
@@ -108,7 +112,7 @@ git commit -m "docs(kb): add agent knowledge base — SYSTEM.md, repo KB, mainte
 
 - [ ] **Step 4: Write `docs/kb/testing.md`**: vitest layout (`tests/**/*.test.ts`, jsdom, `@` alias) + run command; Playwright: two webServers (Docker+Spring JAR test profile; Next.js on **3001**, `reuseExistingServer:false` and why), `.env.test.local` role (real test Stripe keys + 100k rate limits; gitignored), `global-setup.ts` drift checks, Stripe iframe fill technique, test-credentials pointer to walmal V12 migration, `npx playwright test` expected 96 passed.
 
-- [ ] **Step 5: Write `docs/kb/gotchas.md`**: base64url JWT decode fix (`decodePayload`); server-set presence cookie (Chromium IPC race); silent-refresh 429 → guest downgrade (recoverable on reload); stale `.next/types` tsc errors after route deletions; reused :3000 dev server has placeholder Stripe keys.
+- [ ] **Step 5: Write `docs/kb/gotchas.md`**: base64url JWT decode fix (`decodePayload`); server-set presence cookie (Chromium IPC race); silent-refresh 429 → guest downgrade (recoverable on reload); stale `.next/types` tsc errors after route deletions; reused :3000 dev server has placeholder Stripe keys (**approved extension beyond the spec's outline** — directly relevant to the E2E port-3001 rule).
 
 - [ ] **Step 6: Append the shared KB block to `AGENTS.md`.**
 
@@ -128,6 +132,8 @@ git commit -m "docs(kb): add agent knowledge base and maintenance rule"
 **Files:**
 - Create: `CLAUDE.md`, `docs/kb/architecture.md`, `docs/kb/conventions.md`, `docs/kb/gotchas.md`
 - (No `testing.md` — the repo has no tests. No AGENTS.md — Claude Code only.)
+
+**Prerequisite:** Task 1 must be committed first — do not begin until `C:/YHA/006_Claude_Workspace/walmal/docs/kb/SYSTEM.md` exists on disk.
 
 - [ ] **Step 1: Read the spec and `walmal/docs/kb/SYSTEM.md`.** Note: repo branch is `master`, not main.
 
@@ -154,7 +160,7 @@ git commit -m "docs(kb): add CLAUDE.md and agent knowledge base with maintenance
 
 **Files:** none created — read-only verification, fixes only if issues found.
 
-- [ ] **Step 1:** Re-read all 12 created/modified files across the three repos.
+- [ ] **Step 1:** Re-read all 15 created/modified files across the three repos: walmal (`CLAUDE.md` + 5 in `docs/kb/`), walmal-store (`AGENTS.md` + 4 in `docs/kb/`), walmal-admin (`CLAUDE.md` + 3 in `docs/kb/`).
 - [ ] **Step 2:** Verify: no fact appears in two places (especially error shapes, ports, auth storage — SYSTEM.md is the only home for cross-repo facts); every cross-file link/path resolves; all three instruction files carry the identical rule block (modulo the intro sentence); each KB file ≤~100 lines.
 - [ ] **Step 3:** Fix any violations in the offending repo (amend via new commit in that repo, message `docs(kb): fix cross-repo consistency — <what>`).
 - [ ] **Step 4:** Report a summary table: file → line count → verified facts spot-checked.
