@@ -310,22 +310,25 @@ public class AuthServiceImpl implements AuthService {
 
         Role newRole = request.role() != null ? parseRole(request.role()) : null;
 
-        // Build audit old/new value strings before any mutation
+        // Build audit old/new values before any mutation.
+        // audit_log.old_value/new_value are jsonb columns — values MUST be valid JSON.
         StringBuilder oldVal = new StringBuilder();
         StringBuilder newVal = new StringBuilder();
         if (newRole != null) {
-            oldVal.append("role=").append(user.getRole().name());
-            newVal.append("role=").append(newRole.name());
+            oldVal.append("\"role\":\"").append(user.getRole().name()).append('"');
+            newVal.append("\"role\":\"").append(newRole.name()).append('"');
         }
         if (request.active() != null) {
-            if (!oldVal.isEmpty()) { oldVal.append(", "); newVal.append(", "); }
-            oldVal.append("is_active=").append(user.isActive());
-            newVal.append("is_active=").append(request.active());
+            if (!oldVal.isEmpty()) { oldVal.append(','); newVal.append(','); }
+            oldVal.append("\"is_active\":").append(user.isActive());
+            newVal.append("\"is_active\":").append(request.active());
         }
 
         if (oldVal.isEmpty()) {
             return toProfile(user);
         }
+        oldVal.insert(0, '{').append('}');
+        newVal.insert(0, '{').append('}');
 
         // AUDIT FIRST — architecture rule: write audit_log before destructive operation
         auditService.log(new AuditEntry(

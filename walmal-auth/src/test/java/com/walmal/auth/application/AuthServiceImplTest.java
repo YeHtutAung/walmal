@@ -23,6 +23,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -396,6 +398,31 @@ class AuthServiceImplTest {
 
         order.verify(auditService).log(any(AuditEntry.class));
         order.verify(userRepository).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("should_writeValidJsonAuditValues_when_updatingUserRoleAndActive")
+    void should_writeValidJsonAuditValues_when_updatingUserRoleAndActive() throws Exception {
+        // audit_log.old_value/new_value are jsonb columns — non-JSON strings
+        // make the INSERT fail with a PSQLException (UAT round-2 500 bug).
+        UUID userId = UUID.randomUUID();
+        User user = buildUser(Role.STAFF, "pass1234");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenReturn(user);
+
+        authService.updateUser(userId, new UpdateUserRequest("CASHIER", false), "admin");
+
+        ArgumentCaptor<AuditEntry> captor = ArgumentCaptor.forClass(AuditEntry.class);
+        verify(auditService).log(captor.capture());
+        AuditEntry entry = captor.getValue();
+
+        ObjectMapper mapper = new ObjectMapper();
+        var oldJson = mapper.readTree(entry.oldValue()); // throws if not valid JSON
+        var newJson = mapper.readTree(entry.newValue());
+        assertThat(oldJson.get("role").asText()).isEqualTo("STAFF");
+        assertThat(oldJson.get("is_active").asBoolean()).isTrue();
+        assertThat(newJson.get("role").asText()).isEqualTo("CASHIER");
+        assertThat(newJson.get("is_active").asBoolean()).isFalse();
     }
 
     @Test
