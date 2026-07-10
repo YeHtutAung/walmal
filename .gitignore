@@ -18,3 +18,9 @@ Thumbs.db
 .env
 .env.*local
 *.log
+
+# Machine-local Claude Code settings
+.claude/settings.local.json
+
+# Performance test output
+tests/performance/results/
