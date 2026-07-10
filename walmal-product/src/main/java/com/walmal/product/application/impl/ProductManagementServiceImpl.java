@@ -10,6 +10,7 @@ import com.walmal.product.api.dto.request.CreateCategoryRequest;
 import com.walmal.product.api.dto.request.CreateProductRequest;
 import com.walmal.product.api.dto.request.CreateVariantRequest;
 import com.walmal.product.api.dto.request.SetPriceRequest;
+import com.walmal.product.api.dto.request.UpdateCategoryRequest;
 import com.walmal.product.api.dto.request.UpdateProductRequest;
 import com.walmal.product.api.dto.response.CategoryResponse;
 import com.walmal.product.application.ProductManagementService;
@@ -289,6 +290,26 @@ public class ProductManagementServiceImpl implements ProductManagementService {
         cacheService.evict("product:category:tree");
 
         log.info("Category created: {} (slug: {})", category.getId(), category.getSlug());
+        return toCategoryResponse(category);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CategoryResponse getCategory(UUID categoryId) {
+        return toCategoryResponse(findCategoryOrThrow(categoryId));
+    }
+
+    @Override
+    public CategoryResponse updateCategory(UUID categoryId, UpdateCategoryRequest request) {
+        Category category = findCategoryOrThrow(categoryId);
+        category.setName(request.name());
+        category.setSlug(request.slug());
+        category = categoryRepository.save(category);
+
+        // Evict category tree cache
+        cacheService.evict("product:category:tree");
+
+        log.info("Category updated: {} (slug: {})", category.getId(), category.getSlug());
         return toCategoryResponse(category);
     }
 

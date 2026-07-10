@@ -6,6 +6,7 @@ import com.walmal.product.api.dto.request.CreateCategoryRequest;
 import com.walmal.product.api.dto.request.CreateProductRequest;
 import com.walmal.product.api.dto.request.CreateVariantRequest;
 import com.walmal.product.api.dto.request.SetPriceRequest;
+import com.walmal.product.api.dto.request.UpdateCategoryRequest;
 import com.walmal.product.api.dto.request.UpdateProductRequest;
 import com.walmal.product.api.dto.response.CategoryResponse;
 import com.walmal.product.application.ProductCatalogService;
@@ -93,6 +94,36 @@ public class ProductController {
             @Valid @RequestBody CreateCategoryRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok("Category created", managementService.createCategory(request)));
+    }
+
+    @Operation(summary = "Get category by ID",
+            description = "Returns a single category by its ID")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Category returned"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Category not found")
+    })
+    @GetMapping("/categories/{categoryId}")
+    public ResponseEntity<ApiResponse<CategoryResponse>> getCategory(
+            @PathVariable UUID categoryId) {
+        return ResponseEntity.ok(ApiResponse.ok(managementService.getCategory(categoryId)));
+    }
+
+    @Operation(summary = "Update category",
+            description = "Updates a category's name and slug. Requires ADMIN or STAFF role.",
+            security = @SecurityRequirement(name = "bearerAuth"))
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Category updated"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid request"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "ADMIN or STAFF role required"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Category not found")
+    })
+    @PutMapping("/categories/{categoryId}")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+    public ResponseEntity<ApiResponse<CategoryResponse>> updateCategory(
+            @PathVariable UUID categoryId,
+            @Valid @RequestBody UpdateCategoryRequest request) {
+        return ResponseEntity.ok(
+                ApiResponse.ok("Category updated", managementService.updateCategory(categoryId, request)));
     }
 
     // ── Product search endpoints ──────────────────────────────────────────────

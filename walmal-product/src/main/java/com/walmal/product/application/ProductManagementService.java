@@ -4,6 +4,7 @@ import com.walmal.product.api.dto.request.CreateCategoryRequest;
 import com.walmal.product.api.dto.request.CreateProductRequest;
 import com.walmal.product.api.dto.request.CreateVariantRequest;
 import com.walmal.product.api.dto.request.SetPriceRequest;
+import com.walmal.product.api.dto.request.UpdateCategoryRequest;
 import com.walmal.product.api.dto.request.UpdateProductRequest;
 import com.walmal.product.api.dto.response.CategoryResponse;
 import com.walmal.product.application.dto.PriceDto;
@@ -77,6 +78,20 @@ public interface ProductManagementService {
      * Creates a new product category.
      */
     CategoryResponse createCategory(CreateCategoryRequest request);
+
+    /**
+     * Returns a single category by id.
+     *
+     * @throws com.walmal.common.exception.ResourceNotFoundException if not found
+     */
+    CategoryResponse getCategory(UUID categoryId);
+
+    /**
+     * Updates a category's name and slug. Evicts the category tree cache.
+     *
+     * @throws com.walmal.common.exception.ResourceNotFoundException if not found
+     */
+    CategoryResponse updateCategory(UUID categoryId, UpdateCategoryRequest request);
 
     /**
      * Returns all variants for the given product as summary DTOs.

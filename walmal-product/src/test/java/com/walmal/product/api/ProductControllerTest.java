@@ -7,6 +7,8 @@ import com.walmal.auth.config.JwtProperties;
 import com.walmal.common.auth.AuthenticatedPrincipal;
 import com.walmal.common.exception.ResourceNotFoundException;
 import com.walmal.product.api.dto.request.CreateProductRequest;
+import com.walmal.product.api.dto.request.UpdateCategoryRequest;
+import com.walmal.product.api.dto.response.CategoryResponse;
 import com.walmal.product.application.ProductCatalogService;
 import com.walmal.product.application.ProductManagementService;
 import com.walmal.product.application.ProductSearchService;
@@ -40,6 +42,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -83,6 +86,77 @@ class ProductControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").isArray())
                 .andExpect(jsonPath("$.data[0].name").value("Electronics"));
+    }
+
+    // ── GET /categories/{categoryId} ──────────────────────────────────────────
+
+    @Test
+    @DisplayName("should_return200WithCategory_when_getCategoryById")
+    @WithMockUser(username = "customer1", roles = "CUSTOMER")
+    void should_return200WithCategory_when_getCategoryById() throws Exception {
+        UUID categoryId = UUID.randomUUID();
+        CategoryResponse response = new CategoryResponse(
+                categoryId, "Electronics", "electronics", null, true, null, null);
+
+        when(managementService.getCategory(categoryId)).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/product/categories/{categoryId}", categoryId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.name").value("Electronics"))
+                .andExpect(jsonPath("$.data.slug").value("electronics"));
+    }
+
+    @Test
+    @DisplayName("should_return404_when_getCategoryByIdNotFound")
+    @WithMockUser(username = "customer1", roles = "CUSTOMER")
+    void should_return404_when_getCategoryByIdNotFound() throws Exception {
+        UUID unknownId = UUID.randomUUID();
+        when(managementService.getCategory(unknownId))
+                .thenThrow(new ResourceNotFoundException("Category", unknownId));
+
+        mockMvc.perform(get("/api/v1/product/categories/{categoryId}", unknownId))
+                .andExpect(status().isNotFound());
+    }
+
+    // ── PUT /categories/{categoryId} ──────────────────────────────────────────
+
+    @Test
+    @DisplayName("should_return200WithUpdatedCategory_when_updateCategoryCalledByAdmin")
+    void should_return200WithUpdatedCategory_when_updateCategoryCalledByAdmin() throws Exception {
+        AuthenticatedPrincipal admin = new AuthenticatedPrincipal(
+                UUID.randomUUID(), "admin", "ADMIN");
+
+        UUID categoryId = UUID.randomUUID();
+        UpdateCategoryRequest request = new UpdateCategoryRequest("Gadgets", "gadgets");
+        CategoryResponse updated = new CategoryResponse(
+                categoryId, "Gadgets", "gadgets", null, true, null, null);
+
+        when(managementService.updateCategory(any(UUID.class), any(UpdateCategoryRequest.class)))
+                .thenReturn(updated);
+
+        mockMvc.perform(put("/api/v1/product/categories/{categoryId}", categoryId)
+                        .with(authentication(buildAuth(admin)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("Gadgets"))
+                .andExpect(jsonPath("$.data.slug").value("gadgets"));
+    }
+
+    @Test
+    @DisplayName("should_return403_when_updateCategoryCalledByCustomer")
+    void should_return403_when_updateCategoryCalledByCustomer() throws Exception {
+        AuthenticatedPrincipal customer = new AuthenticatedPrincipal(
+                UUID.randomUUID(), "customer1", "CUSTOMER");
+
+        UpdateCategoryRequest request = new UpdateCategoryRequest("Gadgets", "gadgets");
+
+        mockMvc.perform(put("/api/v1/product/categories/{categoryId}", UUID.randomUUID())
+                        .with(authentication(buildAuth(customer)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
     }
 
     // ── GET /search ───────────────────────────────────────────────────────────
