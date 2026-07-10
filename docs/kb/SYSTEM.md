@@ -8,7 +8,7 @@
 |------|------|----------------|--------------|
 | walmal | Spring Boot modular monolith (hub) | `C:/YHA/006_Claude_Workspace/walmal` | 8080 |
 | walmal-store | Next.js App Router storefront | `C:/YHA/006_Claude_Workspace/walmal-store` | 3000 dev / 3001 E2E |
-| walmal-admin | Vite + React + Refine admin SPA | `C:/YHA/006_Claude_Workspace/walmal-admin` | 5173 (Vite default — not pinned in vite.config.ts; verify before relying on it) |
+| walmal-admin | Vite + React + Refine admin SPA | `C:/YHA/006_Claude_Workspace/walmal-admin` | 5173 dev (Vite default — not pinned in vite.config.ts); 5174 E2E (pinned, strictPort, in `playwright.config.ts`) |
 
 ## Infrastructure Services (`walmal/docker-compose.yml`)
 
@@ -73,7 +73,7 @@ Client parsing precedence: field errors > `message` > `detail`.
 
 ### Test profile (`application-test.yml`)
 - Rate limits: 100,000 req/min (both auth'd and unauth'd) — effectively unlimited.
-- CORS: includes `http://localhost:3001` for E2E Next.js server.
+- CORS: includes `http://localhost:3001` (store E2E) and `:5173`–`:5177` (admin dev/E2E; admin E2E pins `:5174`).
 - Profile marker: `info.walmal.profile: test` visible at public `/actuator/info` (used by `global-setup.ts` drift check).
 
 ## Test Credentials
