@@ -39,6 +39,10 @@ import java.util.List;
 @EnableConfigurationProperties(JwtProperties.class)
 public class AuthSecurityConfig {
 
+    /** Methods the browser may use cross-origin. Guarded by CorsMethodCoverageTest. */
+    public static final List<String> CORS_ALLOWED_METHODS =
+            List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
+
     private static final String[] PUBLIC_POST_PATHS = {
             "/api/v1/auth/login",
             "/api/v1/auth/register",
@@ -131,7 +135,7 @@ public class AuthSecurityConfig {
             @Value("${walmal.cors.allowed-origins:http://localhost:3000}") List<String> allowedOrigins) {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOriginPatterns(allowedOrigins);
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedMethods(CORS_ALLOWED_METHODS);
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
 
