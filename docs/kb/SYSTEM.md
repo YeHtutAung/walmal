@@ -24,7 +24,7 @@
 ## Auth Contract
 
 - Tokens: signed HS256 JWTs, base64url-encoded (requires padding + char-swap before `atob()`).
-- Access-token TTL: **15 minutes** (configured `walmal.jwt.access-token-expire-minutes: 15` in `application.yml`; env override `WALMAL_JWT_SECRET`).
+- Access-token TTL: **15 minutes** (`walmal.jwt.access-token-expire-minutes: 15` in `application.yml`; no env override). Signing key: `WALMAL_JWT_SECRET`.
 - Refresh tokens: single-use rotating; stored server-side in Redis.
 - Roles (enum `com.walmal.auth.domain.Role`): `ADMIN`, `STAFF`, `CASHIER`, `CUSTOMER`, `WAREHOUSE_MANAGER`, `WAREHOUSE_STAFF`, `POS_OPERATOR`.
 - Per-client storage:
@@ -46,7 +46,7 @@ Client parsing precedence: field errors > `message` > `detail`.
 - Transactional outbox: business logic writes to `outbox_events` (V15 migration) inside the same DB transaction.
 - `OutboxRelay` (`walmal-infrastructure`) polls and delivers to RabbitMQ after commit.
 - Routing-key scheme: `{module}.{event}` (e.g. `order.created`, `inventory.stock.low`); exchange scheme: `{module}.exchange`.
-- Delivery guarantee: at-most-once (after-commit send; failures are caught+logged).
+- Delivery guarantee: at-least-once (relay retries up to 60 attempts before parking a row as FAILED; a delete rollback can re-send a row). Consumers must be idempotent.
 - FAILED-row recovery: reset via `UPDATE outbox_events SET status='PENDING', attempts=0 WHERE status='FAILED'`. See `docs/DR_PLAN.md` Scenario 6.
 
 ## Environment Variables Matrix (names + purpose only — never values)

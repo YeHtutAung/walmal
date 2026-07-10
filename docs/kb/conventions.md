@@ -8,7 +8,7 @@ The full set of architecture rules (module boundaries, SOLID requirements, cross
 
 All modules return RFC 9457 `ProblemDetail` (Spring 6 built-in). The `detail` field carries the human-readable message. See `docs/kb/SYSTEM.md` for the cross-repo error-body contract.
 
-Per-module exception handlers (all extend `ResponseEntityExceptionHandler` indirectly via `@RestControllerAdvice`):
+Per-module exception handlers (all are `@RestControllerAdvice` classes returning `ProblemDetail`):
 - `AuthExceptionHandler` — `walmal-auth`
 - `InventoryExceptionHandler` — `walmal-inventory`
 - `OrderExceptionHandler` — `walmal-order`
@@ -20,25 +20,11 @@ Per-module exception handlers (all extend `ResponseEntityExceptionHandler` indir
 
 ## Naming Conventions
 
-- Base package: `com.walmal.{module}` (e.g. `com.walmal.inventory`)
-- DB tables: `{module}_{entity}` (e.g. `order_items`, `product_categories`)
-- API base path: `/api/v1/{module}` (e.g. `/api/v1/inventory`)
-- Flyway migrations: `V{n}__{module}_{description}.sql`
-- RabbitMQ exchanges: `{module}.exchange`
-- RabbitMQ routing keys: `{module}.{event}` (e.g. `order.created`)
-- Test method names: `should_{expectedBehavior}_when_{condition}`
+See `CLAUDE.md` "Naming Conventions" — packages, tables, API paths, Flyway files, RabbitMQ exchanges/routing keys, test method names.
 
 ## Module Package Structure
 
-Each module follows:
-```
-src/main/java/com/walmal/{module}/
-  api/           REST controllers + DTOs only
-  domain/        Entities + value objects
-  application/   Service interfaces (public API) + implementations
-  infrastructure/ Repositories, RabbitMQ listeners, Redis adapters
-  config/        Module-specific Spring configuration
-```
+See `CLAUDE.md` "Standard Module Package Structure" — the `api/ domain/ application/ infrastructure/ config/` layout for main and test trees.
 
 ## ADR Index
 
@@ -52,11 +38,4 @@ Architecture Decision Records live in `docs/adr/`:
 
 ## Infrastructure Abstraction Interfaces
 
-Business logic uses only the interfaces from `walmal-common`; never Spring/framework classes directly:
-
-| Interface | Abstracts |
-|-----------|-----------|
-| `DomainEventPublisher` | RabbitMQ / `RabbitTemplate` |
-| `FileStorageService` | MinIO SDK |
-| `CacheService` | `RedisTemplate` |
-| `NotificationChannel` | `JavaMailSender` / in-app |
+See `CLAUDE.md` "Infrastructure Abstraction Interfaces (DIP — Required)" — the interface-to-implementation table (`DomainEventPublisher`, `FileStorageService`, `CacheService`, `NotificationChannel`). Interfaces live in `walmal-common`; implementations in `walmal-infrastructure`.
