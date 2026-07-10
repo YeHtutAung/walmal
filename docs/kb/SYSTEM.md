@@ -29,7 +29,7 @@
 - Roles (enum `com.walmal.auth.domain.Role`): `ADMIN`, `STAFF`, `CASHIER`, `CUSTOMER`, `WAREHOUSE_MANAGER`, `WAREHOUSE_STAFF`, `POS_OPERATOR`.
 - Per-client storage:
   - walmal-store: httpOnly `walmal-rt` cookie set by Next.js proxy routes (`/api/auth/*`); access token in Zustand memory only.
-  - walmal-admin: `accessToken` + `refreshToken` in localStorage (known risk — see `walmal-admin/docs/kb/gotchas.md`).
+  - walmal-admin: `accessToken` + `refreshToken` in localStorage (known risk — see `../walmal-admin/docs/kb/gotchas.md`).
 
 ## Error-Body Contract
 

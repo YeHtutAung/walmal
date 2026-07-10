@@ -48,7 +48,7 @@ cd C:/YHA/006_Claude_Workspace/walmal
 
 ## E2E Tests (walmal-store Playwright)
 
-E2E tests live in `walmal-store/tests/e2e/`. See `walmal-store/docs/kb/testing.md` for the Playwright setup. The backend must be running with the test profile and the current JAR.
+E2E tests live in `../walmal-store/tests/e2e/`. See `../walmal-store/docs/kb/testing.md` for the Playwright setup. The backend must be running with the test profile and the current JAR.
 
 ## k6 Performance Tests
 
