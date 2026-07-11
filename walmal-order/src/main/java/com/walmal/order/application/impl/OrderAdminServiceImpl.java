@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -123,7 +124,8 @@ public class OrderAdminServiceImpl implements OrderAdminService {
             BigDecimal revenue = dayRows.stream()
                     .filter(r -> r.status() == OrderStatus.FULFILLED)
                     .map(OrderTimeseriesRow::totalAmount)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .setScale(2, RoundingMode.HALF_UP);
             result.add(new DailyOrderSummaryDto(date, dayRows.size(), revenue, currency));
         }
         return result;

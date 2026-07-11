@@ -53,6 +53,28 @@ class OrderAdminServiceDailySummaryTest {
         assertThat(result.get(29).date()).isEqualTo(end);
         assertThat(result).allMatch(d -> d.orderCount() == 0 && d.revenue().compareTo(BigDecimal.ZERO) == 0);
         assertThat(result.get(0).currency()).isEqualTo("USD");
+        // Zero-order days must serialize with the same scale as populated days (both scale 2),
+        // since zero-filled and populated buckets always sit side by side in the response array.
+        assertThat(result).allMatch(d -> d.revenue().scale() == 2);
+    }
+
+    @Test
+    void zeroFilledDayRevenueScale_matchesPopulatedDayRevenueScale() {
+        LocalDate populatedDay = LocalDate.of(2026, 7, 10);
+        LocalDate end = LocalDate.of(2026, 7, 11);
+        List<OrderTimeseriesRow> rows = List.of(
+                new OrderTimeseriesRow(onDate(populatedDay), new BigDecimal("100.00"), "USD", OrderStatus.FULFILLED)
+        );
+
+        List<DailyOrderSummaryDto> result = service.buildDailySummary(rows, end);
+        DailyOrderSummaryDto populatedBucket = result.stream()
+                .filter(d -> d.date().equals(populatedDay)).findFirst().orElseThrow();
+        DailyOrderSummaryDto zeroBucket = result.stream()
+                .filter(d -> d.date().equals(end)).findFirst().orElseThrow();
+
+        assertThat(zeroBucket.orderCount()).isZero();
+        assertThat(zeroBucket.revenue().scale()).isEqualTo(populatedBucket.revenue().scale());
+        assertThat(zeroBucket.revenue().scale()).isEqualTo(2);
     }
 
     @Test
