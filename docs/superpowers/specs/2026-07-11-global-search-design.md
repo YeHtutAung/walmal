@@ -49,8 +49,17 @@ Explicitly chosen over a live type-ahead dropdown:
 
 ## Backend design (`walmal`)
 
-Common rule for all three: **a `q` shorter than 2 characters (after trim) returns an empty page
-without querying the database** — guards against full-table ILIKE scans on 1-character queries.
+Short-`q` guard rule — **applies to the two NEW endpoints only** (orders search, users search): a
+`q` shorter than 2 characters (after trim) returns an empty page without querying the database —
+guards against full-table ILIKE scans on 1-character queries.
+
+**The product search endpoint is explicitly exempt** (corrected during plan-writing research — an
+earlier draft applied the guard to all three): `GET /product/search` with an empty `q` is the
+admin products list page's list-all path (the data provider maps the products resource to this
+endpoint), and 1-character searches work there today. Applying the guard would break existing
+consumers. Product search keeps its exact current length semantics and only widens what a
+non-blank `q` matches. The frontend's `/search` page enforces its own 2-character minimum before
+fetching anything, so the global-search UX is consistent across all three sections regardless.
 
 ### 1. Product — extend existing search to SKUs and barcodes (`walmal-product`)
 
@@ -152,8 +161,10 @@ results page) and any row-shaping that has real logic. Section components stay t
 
 ### Backend (`walmal`)
 
-- **Unit tests** (per module): the short-`q` guard — sub-2-char returns an empty page without
-  touching the repository (verify via mock: repository never called).
+- **Unit tests**: the short-`q` guard in order and user search — sub-2-char returns an empty page
+  without touching the repository (verify via mock: repository never called). Product search: unit
+  test that a blank `q` still takes the list-all path (`findAll`, preserving existing consumers)
+  and a non-blank `q` calls the new widened query with correctly lowercased/wrapped pattern.
 - **`@WebMvcTest`** (per new/changed endpoint): auth boundaries (users search → 403 for STAFF;
   orders search → 403 for CUSTOMER), response shape, short-`q` behavior at the HTTP layer.
 - **Integration tests** (Testcontainers, real Postgres) for the two genuinely novel queries:
