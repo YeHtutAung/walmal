@@ -1,6 +1,7 @@
 package com.walmal.product.application.impl;
 
 import com.walmal.common.cache.CacheService;
+import com.walmal.common.util.LikePatterns;
 import com.walmal.product.application.ProductSearchService;
 import com.walmal.product.application.dto.CategoryTreeDto;
 import com.walmal.product.application.dto.ProductSummaryDto;
@@ -75,8 +76,7 @@ public class ProductSearchServiceImpl implements ProductSearchService {
         // Escape LIKE wildcards so user input matches literally (the old derived
         // Containing query auto-escaped; the JPQL query declares ESCAPE '\').
         // Locale.ROOT avoids locale-sensitive folding (e.g. Turkish dotless i).
-        String escaped = query.trim().toLowerCase(Locale.ROOT)
-                .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+        String escaped = LikePatterns.escape(query.trim().toLowerCase(Locale.ROOT));
         String pattern = "%" + escaped + "%";
         return productRepository.searchByNameBrandSkuOrBarcode(pattern, pageable).map(this::toProductSummaryDto);
     }

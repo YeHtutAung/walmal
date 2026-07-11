@@ -6,6 +6,7 @@ import com.walmal.common.audit.AuditService;
 import com.walmal.common.event.DomainEventPublisher;
 import com.walmal.common.exception.BusinessRuleException;
 import com.walmal.common.exception.ResourceNotFoundException;
+import com.walmal.common.util.LikePatterns;
 import com.walmal.order.application.OrderAdminService;
 import com.walmal.order.application.dto.DailyOrderSummaryDto;
 import com.walmal.order.application.dto.OrderAdminSummaryDto;
@@ -66,13 +67,9 @@ public class OrderAdminServiceImpl implements OrderAdminService {
         // Escape LIKE wildcards so user input matches literally (the JPQL query
         // declares ESCAPE '\'). Locale.ROOT avoids locale-sensitive folding
         // (e.g. Turkish dotless i). Same approach as ProductSearchServiceImpl.
-        String needle = escapeLikeWildcards(q.trim().toLowerCase(Locale.ROOT));
+        String needle = LikePatterns.escape(q.trim().toLowerCase(Locale.ROOT));
         return orderRepository.searchByIdPrefixOrGuestEmail(needle + "%", "%" + needle + "%", pageable)
                 .map(this::toAdminSummary);
-    }
-
-    private static String escapeLikeWildcards(String s) {
-        return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     private OrderAdminSummaryDto toAdminSummary(Order o) {
