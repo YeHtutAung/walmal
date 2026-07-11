@@ -56,4 +56,25 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
            "o.createdAt, o.totalAmount, o.currency, o.status) " +
            "FROM Order o WHERE o.createdAt >= :cutoff")
     List<OrderTimeseriesRow> findForDailySummary(@Param("cutoff") Instant cutoff);
+
+    /**
+     * Admin search: order-ID prefix match OR guest-email substring match.
+     *
+     * <p>Both parameters must already be lowercased and LIKE-escaped by the caller
+     * ({@code ESCAPE '\'} so wildcards in user input match literally). The
+     * {@code lower(CAST(o.id AS string))} fold exists because Postgres renders UUIDs
+     * lowercase but an admin may paste an uppercase ID. {@code guestEmail} is null
+     * for registered-customer orders — {@code lower(null) LIKE ...} is simply
+     * non-matching.</p>
+     *
+     * <p>Both predicates defeat indexes by construction (per-row cast, leading
+     * wildcard) — an acceptable sequential scan at admin order volumes; same MVP
+     * tradeoff as product search's ILIKE.</p>
+     */
+    @Query("SELECT o FROM Order o " +
+           "WHERE lower(CAST(o.id AS string)) LIKE :qPrefix ESCAPE '\\' " +
+           "OR lower(o.guestEmail) LIKE :qContains ESCAPE '\\'")
+    Page<Order> searchByIdPrefixOrGuestEmail(@Param("qPrefix") String qPrefixLowercase,
+                                             @Param("qContains") String qContainsLowercase,
+                                             Pageable pageable);
 }

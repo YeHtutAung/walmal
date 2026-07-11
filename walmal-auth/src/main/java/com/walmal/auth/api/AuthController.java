@@ -161,6 +161,27 @@ public class AuthController {
         return ResponseEntity.ok(authService.listUsers(role, active, pageable));
     }
 
+    // ── Search users (admin-only) ─────────────────────────────────────────────
+
+    @Operation(
+            summary = "Search users",
+            description = "Searches users by username or email substring (case-insensitive). "
+                    + "Returns an empty page when q is missing or shorter than 2 characters. Requires ADMIN role.",
+            security = @SecurityRequirement(name = "bearerAuth"))
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Page of matching users returned"),
+            @ApiResponse(responseCode = "401", description = "Not authenticated"),
+            @ApiResponse(responseCode = "403", description = "Insufficient role — ADMIN required")
+    })
+    @GetMapping("/users/search")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Page<UserProfileResponse>> searchUsers(
+            @RequestParam(defaultValue = "") String q, Pageable pageable) {
+        // defaultValue = "" — a missing q must return an empty page, not a 500
+        // from the catch-all handler on MissingServletRequestParameterException.
+        return ResponseEntity.ok(authService.searchUsers(q, pageable));
+    }
+
     // ── Get user by ID (admin-only) ───────────────────────────────────────────
 
     @Operation(

@@ -38,8 +38,10 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -296,6 +298,51 @@ class AuthControllerTest {
     void should_return401_when_unauthenticatedListsUsers() throws Exception {
         mockMvc.perform(get("/api/v1/auth/users"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // ── Search users (admin-only) ─────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should_return200WithMatchingPage_when_adminSearchesUsers")
+    void should_return200WithMatchingPage_when_adminSearchesUsers() throws Exception {
+        AuthenticatedPrincipal admin = new AuthenticatedPrincipal(UUID.randomUUID(), "admin", "ADMIN");
+        Page<UserProfileResponse> page = new PageImpl<>(List.of(
+                new UserProfileResponse(UUID.randomUUID(), "staff1", "staff1@test.com", "STAFF", true)));
+        when(authService.searchUsers(anyString(), any(Pageable.class))).thenReturn(page);
+
+        mockMvc.perform(get("/api/v1/auth/users/search").param("q", "staff")
+                        .with(authentication(buildAuth(admin))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content[0].username").value("staff1"));
+    }
+
+    @Test
+    @DisplayName("should_return403_when_nonAdminSearchesUsers")
+    void should_return403_when_nonAdminSearchesUsers() throws Exception {
+        AuthenticatedPrincipal staff = new AuthenticatedPrincipal(UUID.randomUUID(), "staff1", "STAFF");
+
+        mockMvc.perform(get("/api/v1/auth/users/search").param("q", "staff")
+                        .with(authentication(buildAuth(staff))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("should_return200WithEmptyPage_when_adminSearchesUsersWithoutQueryParam")
+    void should_return200WithEmptyPage_when_adminSearchesUsersWithoutQueryParam() throws Exception {
+        // q defaults to "" — a missing param must yield an empty page, not a 500
+        // from walmal-app's catch-all MissingServletRequestParameterException handler.
+        AuthenticatedPrincipal admin = new AuthenticatedPrincipal(UUID.randomUUID(), "admin", "ADMIN");
+        when(authService.searchUsers(anyString(), any(Pageable.class))).thenReturn(Page.empty());
+
+        mockMvc.perform(get("/api/v1/auth/users/search")
+                        .with(authentication(buildAuth(admin))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content").isEmpty());
+
+        // Pin the defaultValue contract: the service must receive "", not null.
+        verify(authService).searchUsers(eq(""), any(Pageable.class));
     }
 
     // ── Get user by ID (admin-only) ───────────────────────────────────────────

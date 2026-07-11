@@ -290,6 +290,29 @@ public class AuthServiceImpl implements AuthService {
         return users.map(this::toProfile);
     }
 
+    // ── Search users ──────────────────────────────────────────────────────────
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Passes the trimmed RAW query to the derived {@code ContainingIgnoreCase}
+     * finder: Spring Data lowercases both sides for the comparison and escapes
+     * LIKE wildcards ({@code %}, {@code _}, {@code \}) in the bound value itself,
+     * so pre-lowercasing or manual escaping here would be redundant (and manual
+     * escaping would break matches by double-escaping).</p>
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public Page<UserProfileResponse> searchUsers(String q, Pageable pageable) {
+        if (q == null || q.trim().length() < 2) {
+            return Page.empty(pageable);
+        }
+        String needle = q.trim();
+        return userRepository
+                .findByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(needle, needle, pageable)
+                .map(this::toProfile);
+    }
+
     // ── Get user by ID ────────────────────────────────────────────────────────
 
     @Override

@@ -191,6 +191,18 @@ public class OrderController {
         return ApiResponse.ok(orderAdminService.getDailySummary());
     }
 
+    @GetMapping("/admin/search")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    @Operation(summary = "Search orders (admin)",
+               description = "Matches order-ID prefix or guest-email substring, case-insensitive; " +
+                             "LIKE wildcards in q are treated literally. " +
+                             "q under 2 chars returns an empty page. Admin and Staff only.")
+    public ApiResponse<Page<OrderAdminSummaryDto>> searchOrders(
+            @RequestParam(defaultValue = "") String q,
+            @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
+        return ApiResponse.ok(orderAdminService.searchOrders(q, pageable));
+    }
+
     @PatchMapping("/{orderId}/status")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")

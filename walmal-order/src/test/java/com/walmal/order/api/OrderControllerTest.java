@@ -15,6 +15,7 @@ import com.walmal.order.application.OrderCreationService;
 import com.walmal.order.application.OrderFulfillmentService;
 import com.walmal.order.application.OrderQueryService;
 import com.walmal.order.application.dto.DailyOrderSummaryDto;
+import com.walmal.order.application.dto.OrderAdminSummaryDto;
 import com.walmal.order.application.dto.OrderDetailDto;
 import com.walmal.order.application.dto.OrderSummaryDto;
 import com.walmal.order.domain.OrderStatus;
@@ -208,6 +209,57 @@ class OrderControllerTest {
     void should_return403_when_customerRequestsDailySummary() throws Exception {
         AuthenticatedPrincipal customer = new AuthenticatedPrincipal(UUID.randomUUID(), "cust", "CUSTOMER");
         mockMvc.perform(get("/api/v1/orders/admin/daily-summary")
+                        .with(authentication(buildAuth(customer))))
+                .andExpect(status().isForbidden());
+    }
+
+    // ── Admin search ─────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should_return200AndSearchResults_when_adminSearchesOrders")
+    void should_return200AndSearchResults_when_adminSearchesOrders() throws Exception {
+        AuthenticatedPrincipal admin = new AuthenticatedPrincipal(UUID.randomUUID(), "admin", "ADMIN");
+        UUID orderId = UUID.randomUUID();
+        OrderAdminSummaryDto dto = new OrderAdminSummaryDto(
+                orderId, UUID.randomUUID(), OrderStatus.CONFIRMED,
+                new BigDecimal("99.99"), "USD", 2, Instant.now());
+        when(orderAdminService.searchOrders(eq("guest@"), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(dto)));
+
+        mockMvc.perform(get("/api/v1/orders/admin/search")
+                        .param("q", "guest@")
+                        .with(authentication(buildAuth(admin))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.content[0].id").value(orderId.toString()));
+
+        verify(orderAdminService).searchOrders(eq("guest@"), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("should_return200AndEmptyContent_when_adminSearchesWithoutQParam")
+    void should_return200AndEmptyContent_when_adminSearchesWithoutQParam() throws Exception {
+        AuthenticatedPrincipal admin = new AuthenticatedPrincipal(UUID.randomUUID(), "admin", "ADMIN");
+        // Missing q must default to "" (not 500 via the catch-all exception handler);
+        // the service's short-q guard then yields an empty page.
+        when(orderAdminService.searchOrders(eq(""), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        mockMvc.perform(get("/api/v1/orders/admin/search")
+                        .with(authentication(buildAuth(admin))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.content").isEmpty());
+
+        verify(orderAdminService).searchOrders(eq(""), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("should_return403_when_customerSearchesOrders")
+    void should_return403_when_customerSearchesOrders() throws Exception {
+        AuthenticatedPrincipal customer = new AuthenticatedPrincipal(UUID.randomUUID(), "cust", "CUSTOMER");
+        mockMvc.perform(get("/api/v1/orders/admin/search")
+                        .param("q", "guest@")
                         .with(authentication(buildAuth(customer))))
                 .andExpect(status().isForbidden());
     }

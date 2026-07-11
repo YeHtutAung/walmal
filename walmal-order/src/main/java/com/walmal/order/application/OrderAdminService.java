@@ -28,6 +28,21 @@ public interface OrderAdminService {
     Page<OrderAdminSummaryDto> listAllOrders(OrderStatus status, Pageable pageable);
 
     /**
+     * Searches orders by ID prefix or guest-email substring, case-insensitive.
+     *
+     * <p>Guard: a {@code null} query or one shorter than 2 characters after trimming
+     * returns an empty page without touching the repository. LIKE wildcards
+     * ({@code %}, {@code _}, {@code \}) in the query are escaped so they match
+     * literally. Matching semantics: the trimmed, lowercased query matches either
+     * a prefix of the order's UUID (as rendered lowercase by Postgres) or any
+     * substring of the guest email; registered-customer orders (null guest email)
+     * only match via the ID predicate.</p>
+     *
+     * @param q the raw search query; may be {@code null}
+     */
+    Page<OrderAdminSummaryDto> searchOrders(String q, Pageable pageable);
+
+    /**
      * Applies a manual status transition to an order.
      *
      * <p>Valid transitions: PENDING → CONFIRMED, PENDING → CANCELLED, CONFIRMED → FULFILLED.
