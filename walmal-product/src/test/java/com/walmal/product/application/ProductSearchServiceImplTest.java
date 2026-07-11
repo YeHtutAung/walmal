@@ -106,4 +106,17 @@ class ProductSearchServiceImplTest {
         verify(productRepository).searchByNameBrandSkuOrBarcode(eq("%abc%"), eq(pageable));
         verify(productRepository, never()).findAll(any(Pageable.class));
     }
+
+    @Test
+    @DisplayName("LIKE wildcards in the query are escaped to match literally (underscores are plausible in SKU searches)")
+    void should_escapeLikeWildcards_when_queryContainsUnderscore() {
+        when(productRepository.searchByNameBrandSkuOrBarcode(eq("%a\\_b%"), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        Page<ProductSummaryDto> result = service.searchProducts("a_b", pageable);
+
+        assertThat(result).isEmpty();
+        verify(productRepository).searchByNameBrandSkuOrBarcode(eq("%a\\_b%"), eq(pageable));
+        verify(productRepository, never()).findAll(any(Pageable.class));
+    }
 }

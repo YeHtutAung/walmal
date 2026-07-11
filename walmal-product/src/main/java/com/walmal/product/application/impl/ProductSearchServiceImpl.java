@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -71,7 +72,12 @@ public class ProductSearchServiceImpl implements ProductSearchService {
             // behavior (empty q = all products). Do not add a min-length guard here.
             return productRepository.findAll(pageable).map(this::toProductSummaryDto);
         }
-        String pattern = "%" + query.trim().toLowerCase() + "%";
+        // Escape LIKE wildcards so user input matches literally (the old derived
+        // Containing query auto-escaped; the JPQL query declares ESCAPE '\').
+        // Locale.ROOT avoids locale-sensitive folding (e.g. Turkish dotless i).
+        String escaped = query.trim().toLowerCase(Locale.ROOT)
+                .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+        String pattern = "%" + escaped + "%";
         return productRepository.searchByNameBrandSkuOrBarcode(pattern, pageable).map(this::toProductSummaryDto);
     }
 

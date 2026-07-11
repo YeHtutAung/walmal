@@ -25,16 +25,19 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     /**
      * Widened product search across name, brand, variant SKU, and variant barcode.
      *
-     * <p>The parameter must be a pre-built lowercase LIKE pattern
-     * (e.g. {@code %query%}). The explicit {@code countQuery} is mandatory:
-     * Spring Data's derived count for a {@code SELECT DISTINCT} + join can
-     * over-count joined rows, corrupting {@code totalElements}.</p>
+     * <p>The parameter must be a pre-built lowercase LIKE pattern with
+     * {@code %}, {@code _}, and {@code \} in the user input escaped by
+     * {@code \} (e.g. {@code %query%}) — every predicate declares
+     * {@code ESCAPE '\'} so wildcards in user input match literally.
+     * The explicit {@code countQuery} is mandatory: Spring Data's derived
+     * count for a {@code SELECT DISTINCT} + join can over-count joined rows,
+     * corrupting {@code totalElements}.</p>
      */
     @Query(value = "SELECT DISTINCT p FROM Product p LEFT JOIN p.variants v " +
-                   "WHERE lower(p.name) LIKE :q OR lower(p.brand) LIKE :q " +
-                   "OR lower(v.sku) LIKE :q OR lower(v.barcode) LIKE :q",
+                   "WHERE lower(p.name) LIKE :q ESCAPE '\\' OR lower(p.brand) LIKE :q ESCAPE '\\' " +
+                   "OR lower(v.sku) LIKE :q ESCAPE '\\' OR lower(v.barcode) LIKE :q ESCAPE '\\'",
            countQuery = "SELECT COUNT(DISTINCT p) FROM Product p LEFT JOIN p.variants v " +
-                   "WHERE lower(p.name) LIKE :q OR lower(p.brand) LIKE :q " +
-                   "OR lower(v.sku) LIKE :q OR lower(v.barcode) LIKE :q")
+                   "WHERE lower(p.name) LIKE :q ESCAPE '\\' OR lower(p.brand) LIKE :q ESCAPE '\\' " +
+                   "OR lower(v.sku) LIKE :q ESCAPE '\\' OR lower(v.barcode) LIKE :q ESCAPE '\\'")
     Page<Product> searchByNameBrandSkuOrBarcode(@Param("q") String qContainsLowercase, Pageable pageable);
 }
