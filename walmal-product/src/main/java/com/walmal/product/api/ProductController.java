@@ -129,7 +129,7 @@ public class ProductController {
     // ── Product search endpoints ──────────────────────────────────────────────
 
     @Operation(summary = "Search products",
-            description = "Full-text search across product name and brand (ILIKE for MVP)")
+            description = "Full-text search across product name, brand, SKU, or barcode (ILIKE for MVP); blank q lists all products")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Paginated results returned")
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<Page<ProductSummaryDto>>> searchProducts(

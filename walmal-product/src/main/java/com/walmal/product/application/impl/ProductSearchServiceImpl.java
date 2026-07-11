@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
  * <p>DIP: depends on {@link ProductRepository}, {@link CategoryRepository},
  * {@link ProductPriceRepository}, and {@link CacheService} interfaces only.</p>
  *
- * <p>MVP search: ILIKE %query% on name and brand columns.
+ * <p>MVP search: ILIKE %query% on product name/brand and variant SKU/barcode.
  * A full-text search engine is out of scope per CLAUDE.md.</p>
  */
 @Service
@@ -66,9 +66,13 @@ public class ProductSearchServiceImpl implements ProductSearchService {
 
     @Override
     public Page<ProductSummaryDto> searchProducts(String query, Pageable pageable) {
-        return productRepository
-                .findByNameContainingIgnoreCaseOrBrandContainingIgnoreCase(query, query, pageable)
-                .map(this::toProductSummaryDto);
+        if (query == null || query.isBlank()) {
+            // List-all path — the admin products list page depends on this exact
+            // behavior (empty q = all products). Do not add a min-length guard here.
+            return productRepository.findAll(pageable).map(this::toProductSummaryDto);
+        }
+        String pattern = "%" + query.trim().toLowerCase() + "%";
+        return productRepository.searchByNameBrandSkuOrBarcode(pattern, pageable).map(this::toProductSummaryDto);
     }
 
     @Override
