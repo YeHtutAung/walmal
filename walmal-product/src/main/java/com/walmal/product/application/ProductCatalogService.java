@@ -11,8 +11,8 @@ import java.util.UUID;
 /**
  * Cross-module service interface — consumed by Order, POS, and Inventory modules.
  *
- * <p>ISP: Order and POS need catalog lookups only. They do not need search or price mutation.
- * This interface exposes only what those consumers need.</p>
+ * <p>ISP: Order and POS need catalog lookups only; Inventory needs a full catalog snapshot for
+ * rollups. Each interface method is scoped to exactly one of these use cases.</p>
  *
  * <p>Architecture rule: Order, POS, and Inventory depend on this interface only. They never
  * import {@code ProductRepository} or any other infrastructure class from this module.</p>

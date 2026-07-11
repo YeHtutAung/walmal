@@ -29,6 +29,9 @@ public interface CategoryRepository extends JpaRepository<Category, UUID> {
      * Flat category → product → variant rows for every category, including categories with
      * zero products and products with zero variants (LEFT JOIN preserves both).
      */
+    // Intentionally unfiltered — walmal-inventory's rollup is expected to call this once per
+    // request/scheduled run, not in a hot path; add filtering here if a higher-frequency caller
+    // shows up.
     @Query("SELECT new com.walmal.product.application.dto.CategoryProductVariantRow(" +
            "c.id, c.name, p.id, v.id) " +
            "FROM Category c " +
