@@ -1,7 +1,7 @@
 # Category-Level Stock-Health Rollup — Design
 
-**Status:** Approved (section-by-section, 2026-07-11)
-**Repos affected:** `walmal` (backend, new endpoint + new cross-module query method), `walmal-admin` (frontend, replaces the dashboard's global Stock Health chart, adds a Categories list product-count column)
+**Status:** Approved (section-by-section, 2026-07-11); backend module ownership corrected during plan-writing research (see "Architectural constraints" — endpoint moved from `walmal-product` to `walmal-inventory` to avoid a Maven dependency cycle), re-approved 2026-07-11.
+**Repos affected:** `walmal` (backend — new endpoint in `walmal-inventory`, new query method on `walmal-product`'s existing `ProductCatalogService`), `walmal-admin` (frontend, replaces the dashboard's global Stock Health chart, adds a Categories list product-count column)
 
 ## Context
 
@@ -15,37 +15,37 @@ This spec covers both, backed by a single new endpoint.
 
 - **This codebase has a hard rule (ADR-4) against one module's JPA layer JOINing another module's database tables**, even though everything lives in one physical Postgres database. `walmal-inventory` and `walmal-product` (which owns `Category`) are strictly separate at the persistence layer.
 - **However, this is a single deployable Spring Boot application** (`walmal-app` aggregates every module into one JVM/one process) — "modules" are Maven/package boundaries, not network boundaries. The established, already-in-production pattern for cross-module reads/writes is **direct in-process interface injection** (e.g. `walmal-order` and `walmal-pos` already inject and call `walmal-inventory`'s `InventoryReservationService` directly, no HTTP, no event round-trip). This is explicitly documented in ADR-4 as the intended pattern.
-- Therefore: this feature needs a **new read-only batch method on `walmal-inventory`'s existing `InventoryQueryService`** (already the established cross-module read interface, currently only exposing single-variant lookups), called in-process by a new orchestrating service in `walmal-product`.
+- **Correction discovered during plan-writing research (this section originally said the opposite):** `walmal-inventory` already has a compile-scope Maven dependency on `walmal-product` (for the existing `ProductCatalogService` interface, used for variant validation). The dependency is **one-directional**: `walmal-product` has no dependency on `walmal-inventory`. Any design that has `walmal-product` inject something from `walmal-inventory` would create a Maven reactor cycle (`inventory→product→inventory`) and simply fail to build. **Therefore this feature must be owned by `walmal-inventory`, not `walmal-product`** — the data flow runs in the already-established direction: inventory calls into product (via a new method on the existing `ProductCatalogService` interface), not the reverse.
 
 ## Backend design (`walmal`)
 
-### New inventory-side method
+### New product-side method (on an existing interface)
 
-`InventoryQueryService` (interface, `walmal-inventory/.../application/InventoryQueryService.java`) gets a new method:
+`ProductCatalogService` (`walmal-product/.../application/ProductCatalogService.java` — already injected into `walmal-inventory` today, e.g. for variant-active checks) gets one new method:
 
 ```java
-List<VariantStockHealth> getStockHealthByVariantIds(List<UUID> variantIds);
+List<CategoryProductVariantRow> getAllCategoryProductVariantMappings();
 ```
 
-- `VariantStockHealth` — new record: `(UUID variantId, UUID locationId, StockHealthStatus status)`.
-- `StockHealthStatus` — new enum: `OK`, `LOW`, `CRITICAL`.
-- Classification (this becomes the backend's first source of truth for this logic — previously it only existed client-side in `walmal-admin`): `availableQuantity <= lowStockThreshold` → `CRITICAL`; `lowStockThreshold < availableQuantity <= lowStockThreshold * 2` → `LOW`; else → `OK`.
-- Backed by a new `InventoryStockRepository.findByVariantIdIn(List<UUID> variantIds)` — no existing batch/`IN (...)` query precedent in this repository; this is a genuinely new addition, following the existing single-variant query patterns' style.
-- This method stays entirely within `walmal-inventory`'s own schema — it takes bare `UUID`s (no product/category knowledge needed) and returns per-row classifications. No cross-module join.
-- **No caching**: existing `InventoryQueryService` methods use `CacheService` (30-60s TTLs) for the POS hot path; `getStockHealthByVariantIds` deliberately skips caching — it's a lower-frequency admin dashboard read, not worth the added invalidation complexity for a batch query whose result set varies by caller.
-- Update `InventoryQueryService`'s class-level Javadoc (currently framed as "consumed by the POS module") to also mention the new product-module consumer, so it doesn't go stale.
+- `CategoryProductVariantRow` — new record: `(UUID categoryId, String categoryName, UUID productId, UUID variantId)`, with `productId`/`variantId` nullable.
+- Implementation runs **one** query against `walmal-product`'s own tables (`Category` LEFT JOIN `Product` LEFT JOIN `ProductVariant`, all within this module's schema — not a cross-module join) returning a flat row per category/product/variant combination. **Must be a LEFT JOIN, not an INNER JOIN**: a product with zero variants is a real, reachable state in this codebase (`ProductVariant` is optional per `Product`'s own domain model, no API-layer rule requires at least one), and an inner join would silently exclude such products from the eventual product count — defeating the entire point of this feature, since accurate per-category product counting is half of what Phase 1 deferred. Variant-less products must still appear (with a null `variantId`).
+- This method returns everything in one call, no pagination (see Scale note below) — it's a read used only by the new inventory-side rollup, not a general-purpose paginated product API.
+- No auth annotation needed here — this is an internal, in-process method call between modules, not a REST endpoint; the auth gate lives on the public endpoint below.
+- Update `ProductCatalogService`'s class-level Javadoc (currently says "consumed by Order and POS modules") to also mention Inventory — Inventory already injects this interface in production code today (`InventoryReservationServiceImpl` calls `isVariantActive`), so this is pre-existing doc drift, not something this feature introduces, but adding the new method is a good, low-cost point to fix it.
 
-### New product-side orchestration + endpoint
+### New inventory-side orchestration + endpoint
 
-New endpoint: `GET /api/v1/product/categories/stock-health`
+New endpoint: `GET /api/v1/inventory/categories/stock-health`
 
-- Added to `ProductController.java` (category endpoints already live here; there's no separate `CategoryController`).
+- Added to `InventoryStockController.java` (or a new controller in `walmal-inventory`'s `api` package if that file is already large — decide exact placement at implementation time; either way it lives in `walmal-inventory`, not `walmal-product`).
 - `@PreAuthorize("hasAnyRole('ADMIN', 'STAFF', 'WAREHOUSE_MANAGER')")` — the union of roles that can see either consuming page today (dashboard Stock Health chart: ADMIN + WAREHOUSE_MANAGER; Categories list: broader catalog-management audience, ADMIN + STAFF). Flagged as a judgment call during design review — if a tighter split is wanted later, this can be split into two endpoints without changing the underlying query logic.
-- New orchestrating service method (in a new or existing product-side service — decide exact placement at implementation time) that:
-  1. Runs **one** query against `walmal-product`'s own tables (`Category` LEFT JOIN `Product` LEFT JOIN `ProductVariant`, all within this module's schema — not a cross-module join) returning flat `(categoryId, categoryName, productId, variantId)` rows for every category/product/variant, with `productId`/`variantId` nullable in the result. **Must be a LEFT JOIN, not an INNER JOIN**: a product with zero variants is a real, reachable state in this codebase (`ProductVariant` is optional per `Product`'s own domain model, no API-layer rule requires at least one), and an inner join would silently exclude such products from `productCount` — defeating the entire point of this feature, since accurate per-category product counting is half of what Phase 1 deferred. Variant-less products must still be counted in `productCount`, just contribute nothing to the health tallies.
-  2. Extracts the distinct non-null `variantId` list across ALL categories and calls `inventoryQueryService.getStockHealthByVariantIds(...)` **exactly once** — not once per category (avoids N+1 across the module boundary).
-  3. Aggregates in Java: groups the flat rows by `categoryId`; for each category, `productCount` = count of distinct non-null `productId`s (a variant-less product still counts once here), and `okCount`/`lowCount`/`criticalCount` = tally of the matched `VariantStockHealth` results whose `variantId` belongs to that category (rows with a null `variantId` contribute nothing to these tallies).
-  4. Categories with **zero** products/variants still appear in the result with `productCount: 0` and all health counts `0` — not omitted.
+- New orchestrating service method (in a new or existing inventory-side service — decide exact placement at implementation time) that:
+  1. Calls `productCatalogService.getAllCategoryProductVariantMappings()` **exactly once** — the already-established, already-injected cross-module call.
+  2. Extracts the distinct non-null `variantId` list and queries `InventoryStockRepository.findByVariantIdIn(...)` (new repository method — no existing batch/`IN (...)` query precedent in this repository, following the existing single-variant query patterns' style) **exactly once** — not once per category. This is a plain repository call within inventory's own module; it does not need to go through a new public `InventoryQueryService` method, since the orchestration and the repository both live in the same module now.
+  3. Classifies each returned stock row as `OK` / `LOW` / `CRITICAL` (this becomes the backend's first source of truth for this logic — previously it only existed client-side in `walmal-admin`): `availableQuantity <= lowStockThreshold` → `CRITICAL`; `lowStockThreshold < availableQuantity <= lowStockThreshold * 2` → `LOW`; else → `OK`.
+  4. Aggregates in Java: groups the product-side flat rows by `categoryId`; for each category, `productCount` = count of distinct non-null `productId`s (a variant-less product still counts once here), and `okCount`/`lowCount`/`criticalCount` = tally of the classified stock rows whose `variantId` belongs to that category (rows with a null `variantId`, or a `variantId` with no matching stock rows, contribute nothing to these tallies).
+  5. Categories with **zero** products/variants still appear in the result with `productCount: 0` and all health counts `0` — not omitted.
+- **No caching** on this endpoint or its underlying calls: it's a lower-frequency admin dashboard read, not worth the added invalidation complexity for a batch query whose result set varies by caller.
 
 ### Response shape
 
@@ -70,11 +70,11 @@ New endpoint: `GET /api/v1/product/categories/stock-health`
 
 ### Dashboard — replacing the global Stock Health chart
 
-The existing client-side `stockBarData` computation (from raw `inventoryResult`, 3 fixed OK/Low/Critical bars) is replaced by a new fetch to `GET /product/categories/stock-health`, feeding a **horizontal stacked bar chart**: one bar per category (Y-axis = category name), each bar segmented into OK (green) / Low (yellow) / Critical (red) counts (X-axis, stacked). Reuses the existing `layout="vertical"` `<BarChart>` pattern already on this page — the change is `stackId="health"` across three `<Bar>` series instead of one flat series. Same card slot, same `showStockHealthChart` permission gate (unchanged), same color convention already used elsewhere on the dashboard. Loading/error follow the established `Skeleton`/`WidgetError` pattern.
+The existing client-side `stockBarData` computation (from raw `inventoryResult`, 3 fixed OK/Low/Critical bars) is replaced by a new fetch to `GET /inventory/categories/stock-health`, feeding a **horizontal stacked bar chart**: one bar per category (Y-axis = category name), each bar segmented into OK (green) / Low (yellow) / Critical (red) counts (X-axis, stacked). Reuses the existing `layout="vertical"` `<BarChart>` pattern already on this page — the change is `stackId="health"` across three `<Bar>` series instead of one flat series. Same card slot, same `showStockHealthChart` permission gate (unchanged), same color convention already used elsewhere on the dashboard. Loading/error follow the established `Skeleton`/`WidgetError` pattern.
 
 ### Categories list — real product-count column
 
-The Categories page makes its own fetch to the same `GET /product/categories/stock-health` endpoint (cheap — a small, flat, unpaginated per-category list), builds a `Map<categoryId, productCount>` client-side, and joins it into the existing category rows to populate a new "Products" column, replacing the placeholder Phase 1 explicitly omitted. If the fetch fails, or a category's ID isn't present in the map (e.g. the endpoint is unreachable, or a permission edge case), the column shows `"—"` for that row rather than blocking the rest of the table.
+The Categories page makes its own fetch to the same `GET /inventory/categories/stock-health` endpoint (cheap — a small, flat, unpaginated per-category list), builds a `Map<categoryId, productCount>` client-side, and joins it into the existing category rows to populate a new "Products" column, replacing the placeholder Phase 1 explicitly omitted. If the fetch fails, or a category's ID isn't present in the map (e.g. the endpoint is unreachable, or a permission edge case), the column shows `"—"` for that row rather than blocking the rest of the table.
 
 ### Pure logic
 
@@ -86,11 +86,11 @@ Following the established Phase 1/2 convention, two small colocated pure functio
 
 ### Backend (`walmal`)
 
-- **Unit test**: stock-health classification boundary logic (`available == threshold`, `available == threshold*2`, well above/below both) — this is new backend logic (previously frontend-only), deserves careful boundary coverage.
-- **Unit test**: the new batch query method (mocked repository) — correct per-row classification and grouping.
-- **Unit test**: the new `walmal-product` orchestration service (mocked `InventoryQueryService`) — aggregation logic: productCount tally, health-count tally per category, correct handling of a category with zero products/variants (must still appear with all-zero counts, not be omitted).
-- **`@WebMvcTest`**: the new controller endpoint — auth boundary (ADMIN/STAFF/WAREHOUSE_MANAGER allowed, other roles 403), response shape.
-- **Integration test** (Testcontainers, real Postgres): this feature introduces two new repository queries (inventory's `findByVariantIdIn`, product's flat category/product/variant projection) plus the in-process cross-module call between them — worth proving the whole pipeline end-to-end against a real database, matching the bar set by the daily-summary feature's integration test.
+- **Unit test** (`walmal-product`): the new `getAllCategoryProductVariantMappings()` query — correct LEFT JOIN behavior, confirming a variant-less product still appears (with null `variantId`), a category with zero products still appears.
+- **Unit test** (`walmal-inventory`): stock-health classification boundary logic (`available == threshold`, `available == threshold*2`, well above/below both) — this is new backend logic (previously frontend-only), deserves careful boundary coverage.
+- **Unit test** (`walmal-inventory`): the new orchestration service (mocked `ProductCatalogService` + mocked `InventoryStockRepository`) — aggregation logic: productCount tally, health-count tally per category, correct handling of a category with zero products/variants (must still appear with all-zero counts, not be omitted).
+- **`@WebMvcTest`** (`walmal-inventory`): the new controller endpoint — auth boundary (ADMIN/STAFF/WAREHOUSE_MANAGER allowed, other roles 403), response shape.
+- **Integration test** (Testcontainers, real Postgres, in `walmal-inventory` since that's where the endpoint and orchestration now live): this feature introduces two new repository/query methods (inventory's `findByVariantIdIn`, product's flat category/product/variant LEFT JOIN) plus the in-process cross-module call between them (already-established direction: inventory → product) — worth proving the whole pipeline end-to-end against a real database, matching the bar set by the daily-summary feature's integration test.
 
 ### Frontend (`walmal-admin`)
 
@@ -99,7 +99,7 @@ Following the established Phase 1/2 convention, two small colocated pure functio
 
 ## KB updates (both repos, same session — new cross-repo contract)
 
-- `walmal`'s KB — document the new endpoint, the new `InventoryQueryService.getStockHealthByVariantIds` batch method, and the aggregation approach (flat single-module queries + one batched in-process cross-module call + Java-side grouping) as a second example of this codebase's now-established "fetch flat, aggregate in Java" rollup pattern (the daily-summary endpoint was the first).
+- `walmal`'s KB — document the new endpoint (owned by `walmal-inventory`), the new `ProductCatalogService.getAllCategoryProductVariantMappings()` method, and the aggregation approach (flat single-module queries + one in-process cross-module call in the already-established inventory→product direction + Java-side grouping) as a second example of this codebase's now-established "fetch flat, aggregate in Java" rollup pattern (the daily-summary endpoint was the first). Also worth a one-line note on why this module ownership was chosen (the one-directional `inventory→product` Maven dependency) so a future engineer doesn't try to "fix" it by moving the endpoint to `walmal-product`.
 - `walmal/docs/kb/SYSTEM.md` — new cross-repo contract entry.
 - `walmal-admin/docs/kb/architecture.md` — document the replaced dashboard chart and the new Categories list column.
 
