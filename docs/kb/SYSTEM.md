@@ -55,7 +55,7 @@ Endpoints intended for consumption by `walmal-admin` (or other non-walmal client
 
 | Endpoint | Auth | Response |
 |----------|------|----------|
-| `GET /api/v1/orders/admin/daily-summary` | `ADMIN` or `STAFF` role (JWT) | `ApiResponse<List<DailyOrderSummaryDto>>` — 30 entries, one per UTC day `[today-29, today]` inclusive, zero-filled. Each: `{date: LocalDate, orderCount: long, revenue: BigDecimal (scale 2), currency: string}`. `orderCount` = all statuses; `revenue` = sum of `FULFILLED`-order `totalAmount` for that day; `currency` = first `FULFILLED` order's currency in the window, `"USD"` if none. |
+| `GET /api/v1/orders/admin/daily-summary` | `ADMIN` or `STAFF` role (JWT) | `ApiResponse<List<DailyOrderSummaryDto>>` — 30 entries, one per UTC day `[today-29, today]` inclusive, zero-filled. Each: `{date: LocalDate, orderCount: long, revenue: BigDecimal (scale 2), currency: String}`. `orderCount` = all statuses; `revenue` = sum of `FULFILLED`-order `totalAmount` for that day; `currency` = first `FULFILLED` order's currency in the window, `"USD"` if none. |
 
 ## Environment Variables Matrix (names + purpose only — never values)
 
