@@ -1,10 +1,14 @@
 package com.walmal.order.application;
 
+import com.walmal.order.application.dto.DailyOrderSummaryDto;
 import com.walmal.order.application.dto.OrderAdminSummaryDto;
+import com.walmal.order.application.dto.OrderTimeseriesRow;
 import com.walmal.order.domain.OrderStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -35,4 +39,17 @@ public interface OrderAdminService {
      * @param reason    optional reason for audit log
      */
     void updateStatus(UUID orderId, OrderStatus newStatus, String reason);
+
+    /**
+     * Buckets raw order timeseries rows into a 30-day, zero-filled daily summary
+     * ending at {@code endDateUtc} (inclusive). Pure aggregation logic — no I/O.
+     *
+     * <p>All statuses count toward {@code orderCount}; only {@link OrderStatus#FULFILLED}
+     * orders contribute to {@code revenue}. The reported currency is taken from the first
+     * fulfilled row encountered, defaulting to {@code "USD"} when none exist.</p>
+     *
+     * @param rows       raw order rows to aggregate (e.g. from a repository projection query)
+     * @param endDateUtc the last (most recent) day of the 30-day window, in UTC
+     */
+    List<DailyOrderSummaryDto> buildDailySummary(List<OrderTimeseriesRow> rows, LocalDate endDateUtc);
 }

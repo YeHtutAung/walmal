@@ -7,7 +7,9 @@ import com.walmal.common.event.DomainEventPublisher;
 import com.walmal.common.exception.BusinessRuleException;
 import com.walmal.common.exception.ResourceNotFoundException;
 import com.walmal.order.application.OrderAdminService;
+import com.walmal.order.application.dto.DailyOrderSummaryDto;
 import com.walmal.order.application.dto.OrderAdminSummaryDto;
+import com.walmal.order.application.dto.OrderTimeseriesRow;
 import com.walmal.order.domain.Order;
 import com.walmal.order.domain.OrderStatus;
 import com.walmal.order.domain.event.OrderCancelledEvent;
@@ -20,9 +22,15 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -96,5 +104,28 @@ public class OrderAdminServiceImpl implements OrderAdminService {
             }
             default -> throw new BusinessRuleException("Cannot transition order to status: " + newStatus);
         }
+    }
+
+    @Override
+    public List<DailyOrderSummaryDto> buildDailySummary(List<OrderTimeseriesRow> rows, LocalDate endDateUtc) {
+        Map<LocalDate, List<OrderTimeseriesRow>> byDate = rows.stream()
+                .collect(Collectors.groupingBy(r -> r.createdAt().atZone(ZoneOffset.UTC).toLocalDate()));
+
+        String currency = rows.stream()
+                .filter(r -> r.status() == OrderStatus.FULFILLED)
+                .findFirst()
+                .map(OrderTimeseriesRow::currency)
+                .orElse("USD");
+
+        List<DailyOrderSummaryDto> result = new ArrayList<>();
+        for (LocalDate date = endDateUtc.minusDays(29); !date.isAfter(endDateUtc); date = date.plusDays(1)) {
+            List<OrderTimeseriesRow> dayRows = byDate.getOrDefault(date, List.of());
+            BigDecimal revenue = dayRows.stream()
+                    .filter(r -> r.status() == OrderStatus.FULFILLED)
+                    .map(OrderTimeseriesRow::totalAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            result.add(new DailyOrderSummaryDto(date, dayRows.size(), revenue, currency));
+        }
+        return result;
     }
 }
