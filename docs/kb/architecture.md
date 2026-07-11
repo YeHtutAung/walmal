@@ -48,6 +48,8 @@ This is this codebase's first GROUP BY-equivalent (date-bucketing/aggregation) p
 
 This is `walmal-inventory`'s first cross-module rollup: `CategoryStockHealthServiceImpl` calls `walmal-product`'s `ProductCatalogService.getAllCategoryProductVariantMappings()` (a flat category/product/variant projection) to get the category shape, then batch-loads matching stock rows via `InventoryStockRepository.findByVariantIdIn(...)` and tallies health counts in application code — same flat-projection-plus-Java-side-aggregation shape as the `daily-summary` endpoint above, but composing across two modules' service interfaces rather than aggregating one module's own repository rows.
 
+**Module ownership — why this lives in `walmal-inventory`, not `walmal-product`:** `walmal-inventory`'s `pom.xml` already declares a compile-scope dependency on `walmal-product` (for the pre-existing `ProductCatalogService` interface). That dependency is **one-directional** — `walmal-product` has no dependency back on `walmal-inventory`. Any design where `walmal-product` calls into `walmal-inventory` (e.g. to read stock rows) would create a Maven reactor cycle (`inventory→product→inventory`) and fail to build. The data flow here runs in the already-established direction instead: inventory calls product's `ProductCatalogService`, not the reverse. This was a real correction made during this feature's design phase — the original spec had the endpoint under `walmal-product` and had to be flipped once the one-directional dependency was noticed. **Do not "fix" this by moving the endpoint to `walmal-product`** — that's the direction that doesn't build.
+
 ## Flyway Migration Map (V1–V15)
 
 | Version | Description |
