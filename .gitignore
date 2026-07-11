@@ -24,3 +24,6 @@ Thumbs.db
 
 # Performance test output
 tests/performance/results/
+
+# Git worktrees
+.worktrees/
