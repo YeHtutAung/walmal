@@ -114,6 +114,16 @@ public class InventoryStock extends BaseEntity {
         return this.availableQuantity == 0;
     }
 
+    public StockHealthStatus classifyHealth() {
+        if (this.availableQuantity <= this.lowStockThreshold) {
+            return StockHealthStatus.CRITICAL;
+        }
+        if (this.availableQuantity <= this.lowStockThreshold * 2) {
+            return StockHealthStatus.LOW;
+        }
+        return StockHealthStatus.OK;
+    }
+
     // ── Getters / setters ─────────────────────────────────────────────────────
 
     public UUID getVariantId() { return variantId; }

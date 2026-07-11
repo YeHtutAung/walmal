@@ -100,4 +100,30 @@ class InventoryStockTest {
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("negative stock");
     }
+
+    @Test
+    void classifiesAsCritical_whenAvailableAtOrBelowThreshold() {
+        assertThat(new InventoryStock(UUID.randomUUID(), location, 10, 10).classifyHealth())
+                .isEqualTo(StockHealthStatus.CRITICAL);
+        assertThat(new InventoryStock(UUID.randomUUID(), location, 5, 10).classifyHealth())
+                .isEqualTo(StockHealthStatus.CRITICAL);
+        assertThat(new InventoryStock(UUID.randomUUID(), location, 0, 10).classifyHealth())
+                .isEqualTo(StockHealthStatus.CRITICAL);
+    }
+
+    @Test
+    void classifiesAsLow_whenAvailableBetweenThresholdAndDoubleThresholdInclusive() {
+        assertThat(new InventoryStock(UUID.randomUUID(), location, 11, 10).classifyHealth())
+                .isEqualTo(StockHealthStatus.LOW);
+        assertThat(new InventoryStock(UUID.randomUUID(), location, 20, 10).classifyHealth())
+                .isEqualTo(StockHealthStatus.LOW);
+    }
+
+    @Test
+    void classifiesAsOk_whenAvailableAboveDoubleThreshold() {
+        assertThat(new InventoryStock(UUID.randomUUID(), location, 21, 10).classifyHealth())
+                .isEqualTo(StockHealthStatus.OK);
+        assertThat(new InventoryStock(UUID.randomUUID(), location, 1000, 10).classifyHealth())
+                .isEqualTo(StockHealthStatus.OK);
+    }
 }
