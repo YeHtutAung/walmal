@@ -29,6 +29,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -54,11 +55,31 @@ public class OrderAdminServiceImpl implements OrderAdminService {
         Page<Order> page = status != null
                 ? orderRepository.findByStatus(status, pageable)
                 : orderRepository.findAll(pageable);
-        return page
-                .map(o -> new OrderAdminSummaryDto(
-                        o.getId(), o.getUserId(), o.getStatus(),
-                        o.getTotalAmount(), o.getCurrency(),
-                        o.getItemCount(), o.getCreatedAt()));
+        return page.map(this::toAdminSummary);
+    }
+
+    @Override
+    public Page<OrderAdminSummaryDto> searchOrders(String q, Pageable pageable) {
+        if (q == null || q.trim().length() < 2) {
+            return Page.empty(pageable);
+        }
+        // Escape LIKE wildcards so user input matches literally (the JPQL query
+        // declares ESCAPE '\'). Locale.ROOT avoids locale-sensitive folding
+        // (e.g. Turkish dotless i). Same approach as ProductSearchServiceImpl.
+        String needle = escapeLikeWildcards(q.trim().toLowerCase(Locale.ROOT));
+        return orderRepository.searchByIdPrefixOrGuestEmail(needle + "%", "%" + needle + "%", pageable)
+                .map(this::toAdminSummary);
+    }
+
+    private static String escapeLikeWildcards(String s) {
+        return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
+    private OrderAdminSummaryDto toAdminSummary(Order o) {
+        return new OrderAdminSummaryDto(
+                o.getId(), o.getUserId(), o.getStatus(),
+                o.getTotalAmount(), o.getCurrency(),
+                o.getItemCount(), o.getCreatedAt());
     }
 
     @Override
