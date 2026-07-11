@@ -4,7 +4,7 @@
 
 | Module | Role |
 |--------|------|
-| `walmal-common` | Shared domain interfaces (`DomainEventPublisher`, `FileStorageService`, `CacheService`, `NotificationChannel`) and value objects; no Spring beans |
+| `walmal-common` | Shared domain interfaces (`DomainEventPublisher`, `FileStorageService`, `CacheService`, `NotificationChannel`), value objects, and static utilities (`LikePatterns`); no Spring beans |
 | `walmal-infrastructure` | Concrete implementations of common interfaces (RabbitMQ, MinIO, Redis, SMTP); `OutboxRelay`; `InfrastructureConfiguration` |
 | `walmal-auth` | User accounts, JWT issuance/validation, roles, refresh-token lifecycle |
 | `walmal-product` | Product catalogue, categories, variants, images |
@@ -33,6 +33,7 @@
 | GlobalExceptionHandler | `walmal-app/src/main/java/com/walmal/gateway/exception/GlobalExceptionHandler.java` |
 | AuthExceptionHandler | `walmal-auth/src/main/java/com/walmal/auth/api/AuthExceptionHandler.java` |
 | Role enum | `walmal-auth/src/main/java/com/walmal/auth/domain/Role.java` |
+| LikePatterns (LIKE-wildcard escaping) | `walmal-common/src/main/java/com/walmal/common/util/LikePatterns.java` |
 | Main application config | `walmal-app/src/main/resources/application.yml` |
 | Test profile config | `walmal-app/src/main/resources/application-test.yml` |
 
@@ -49,6 +50,24 @@ This is this codebase's first GROUP BY-equivalent (date-bucketing/aggregation) p
 This is `walmal-inventory`'s first cross-module rollup: `CategoryStockHealthServiceImpl` calls `walmal-product`'s `ProductCatalogService.getAllCategoryProductVariantMappings()` (a flat category/product/variant projection) to get the category shape, then batch-loads matching stock rows via `InventoryStockRepository.findByVariantIdIn(...)` and tallies health counts in application code — same flat-projection-plus-Java-side-aggregation shape as the `daily-summary` endpoint above, but composing across two modules' service interfaces rather than aggregating one module's own repository rows.
 
 **Module ownership — why this lives in `walmal-inventory`, not `walmal-product`:** `walmal-inventory`'s `pom.xml` already declares a compile-scope dependency on `walmal-product` (for the pre-existing `ProductCatalogService` interface). That dependency is **one-directional** — `walmal-product` has no dependency back on `walmal-inventory`. Any design where `walmal-product` calls into `walmal-inventory` (e.g. to read stock rows) would create a Maven reactor cycle (`inventory→product→inventory`) and fail to build. The data flow here runs in the already-established direction instead: inventory calls product's `ProductCatalogService`, not the reverse. This was a real correction made during this feature's design phase — the original spec had the endpoint under `walmal-product` and had to be flipped once the one-directional dependency was noticed. **Do not "fix" this by moving the endpoint to `walmal-product`** — that's the direction that doesn't build.
+
+## Search Endpoints (Global Search — frontend fan-out)
+
+The admin "global search" feature is served by **three per-module search endpoints, queried in parallel by the frontend**. Full request/response contracts live in `docs/kb/SYSTEM.md` ("Admin-Facing Endpoint Contracts"); this section covers ownership, matching semantics, and the two conventions the implementations must not drift from.
+
+| Endpoint | Owner | Matching semantics | Query style |
+|----------|-------|--------------------|-------------|
+| `GET /api/v1/product/search?q=` | `walmal-product` (`ProductController` → `ProductSearchServiceImpl` → `ProductRepository.searchByNameBrandSkuOrBarcode`) | Case-insensitive *contains* on product name, brand, variant SKU, or variant barcode (widened from name/brand by the global-search feature; same URL/params/response) | Hand-written JPQL (`LEFT JOIN p.variants`, `SELECT DISTINCT`, explicit `countQuery` — the derived count over a DISTINCT join over-counts joined rows) |
+| `GET /api/v1/orders/admin/search?q=` | `walmal-order` (`OrderController` → `OrderAdminServiceImpl.searchOrders` → `OrderRepository.searchByIdPrefixOrGuestEmail`) | Order-ID *prefix* (`lower(CAST(o.id AS string))` — Postgres renders UUIDs lowercase; uppercase pasted IDs are folded) or guest-email *substring*; null guest email (registered customers) matches only via ID | Hand-written JPQL |
+| `GET /api/v1/auth/users/search?q=` | `walmal-auth` (`AuthController` → `AuthServiceImpl.searchUsers` → `UserRepository`) | Username or email *substring*, case-insensitive; response is a bare `Page` (auth-module convention — no `ApiResponse` envelope) | Derived `findBy...ContainingIgnoreCase...` finder |
+
+**Fan-out over aggregation (deliberate decision):** the admin frontend issues all three requests in parallel and renders three independent result sections. A single backend `GET /search` aggregator was considered and rejected because **a three-way aggregation hub has no natural owner** — whichever module hosted it would need compile-scope dependencies on the other two (product + order + auth data simultaneously), a "god module" shape that ADR-4's per-module data ownership is designed to avoid. Nuance (corrected during spec review): a compile-scope dependency on `walmal-auth` is *not* unprecedented — `walmal-notification` already consumes auth's `StaffNotificationQueryService` — but one existing targeted edge doesn't justify a three-way hub. Do not "unify" these into a cross-module aggregator later without confronting this dependency-edge problem. Per-module endpoints are also independently useful (each module's own list pages can adopt them).
+
+**Short-`q` guard convention:** the two endpoints introduced by global search (orders, users) return an empty page — **without touching the database** — when `q` is missing (`@RequestParam(defaultValue = "")`, so a missing param never 500s) or shorter than 2 characters after trimming. This guards against 1-character full-table ILIKE scans. **Product search is exempt, on purpose:** empty/blank `q` there is the *list-all* path that the admin products list page depends on, and 1-character searches work there today — a code comment in `ProductSearchServiceImpl` says not to add a guard. An engineer "harmonizing" product search with the other two would break an existing screen.
+
+**LIKE-escaping invariant:** escape user input via `LikePatterns.escape` **and** declare `ESCAPE '\'` on the LIKE predicate **iff the query is hand-written JPQL** (product and order searches do this); derived `Containing` queries (users search) escape LIKE wildcards in the bound value themselves — **never do both**. Adding manual escaping on top of a derived query double-escapes, silently breaking matches for input containing `%`, `_`, or `\`; omitting it from hand-written JPQL lets user wildcards through. This exact confusion nearly shipped twice during this feature's reviews. `LikePatterns` lives in `walmal-common` (`com.walmal.common.util.LikePatterns`); backslash is doubled first, then `%` and `_` are escaped.
+
+Performance note: both hand-written queries defeat indexes by construction (per-row UUID-to-string cast, leading `%` wildcard). This is an accepted sequential-scan tradeoff at admin search volumes — the same MVP tradeoff as product search's ILIKE.
 
 ## Flyway Migration Map (V1–V15)
 
