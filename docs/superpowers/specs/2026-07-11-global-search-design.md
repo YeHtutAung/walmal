@@ -52,7 +52,7 @@ Explicitly chosen over a live type-ahead dropdown:
 Common rule for all three: **a `q` shorter than 2 characters (after trim) returns an empty page
 without querying the database** — guards against full-table ILIKE scans on 1-character queries.
 
-### 1. Product — extend existing search to SKUs (`walmal-product`)
+### 1. Product — extend existing search to SKUs and barcodes (`walmal-product`)
 
 `GET /api/v1/product/search?q=` — same endpoint, same `ApiResponse<Page<ProductSummaryDto>>`, same
 pagination; only the matching semantics widen. Replace the current derived query
@@ -63,9 +63,12 @@ SELECT DISTINCT p FROM Product p LEFT JOIN p.variants v
 WHERE lower(p.name) LIKE :qContains
    OR lower(p.brand) LIKE :qContains
    OR lower(v.sku) LIKE :qContains
+   OR lower(v.barcode) LIKE :qContains
 ```
 
-- A SKU hit returns the **parent product** (the search results page shows products, not variants).
+- A SKU or barcode hit returns the **parent product** (the search results page shows products, not
+  variants). `barcode` is nullable — `lower(null) LIKE ...` simply doesn't match, no special
+  handling needed (approved into scope at user spec review, 2026-07-11; originally deferred).
 - `DISTINCT` prevents duplicate rows when multiple variants of one product match.
 - LEFT JOIN (not inner) so products with zero variants still match on name/brand.
 - Pagination on a `SELECT DISTINCT` + join: verify Spring Data generates a correct count query
@@ -154,7 +157,8 @@ results page) and any row-shaping that has real logic. Section components stay t
 - **`@WebMvcTest`** (per new/changed endpoint): auth boundaries (users search → 403 for STAFF;
   orders search → 403 for CUSTOMER), response shape, short-`q` behavior at the HTTP layer.
 - **Integration tests** (Testcontainers, real Postgres) for the two genuinely novel queries:
-  - `walmal-product`: SKU-only match returns the parent product; `DISTINCT` deduplicates
+  - `walmal-product`: SKU-only match returns the parent product; barcode-only match returns the
+    parent product; a variant with a null barcode doesn't break matching; `DISTINCT` deduplicates
     multi-variant matches (seed one product with 2+ matching SKUs, assert one row); name/brand
     matching still works (no regression); pagination count is correct with the join.
   - `walmal-order`: ID-prefix matching works against real UUIDs; guest-email contains-matching
@@ -186,11 +190,6 @@ results page) and any row-shaping that has real logic. Section components stay t
 
 - Live type-ahead / command-palette UI (rate-limit and primitive-availability reasons above; the
   results-page contract doesn't preclude adding it later).
-- Barcode search — deferred, not impossible: `ProductVariant.barcode` *does* exist (nullable
-  column; an earlier draft of this spec wrongly claimed otherwise — corrected during spec review),
-  and adding it later is one more OR clause in the same JPQL plus a test case. Deferred because
-  the approved scope was the mockup's literal "SKUs" promise; flag to the product owner as a cheap
-  follow-up toggle.
 - Order search by amount/date ranges (deferred; ID-prefix + guest email covers the actual admin
   workflow).
 - Searching registered customers' emails on orders (order rows store `userId`, not email — joining
