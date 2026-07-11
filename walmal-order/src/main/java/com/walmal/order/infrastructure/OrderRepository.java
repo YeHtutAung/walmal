@@ -66,6 +66,10 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
      * lowercase but an admin may paste an uppercase ID. {@code guestEmail} is null
      * for registered-customer orders — {@code lower(null) LIKE ...} is simply
      * non-matching.</p>
+     *
+     * <p>Both predicates defeat indexes by construction (per-row cast, leading
+     * wildcard) — an acceptable sequential scan at admin order volumes; same MVP
+     * tradeoff as product search's ILIKE.</p>
      */
     @Query("SELECT o FROM Order o " +
            "WHERE lower(CAST(o.id AS string)) LIKE :qPrefix ESCAPE '\\' " +

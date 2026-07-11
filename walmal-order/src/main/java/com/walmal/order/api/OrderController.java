@@ -198,7 +198,7 @@ public class OrderController {
                              "LIKE wildcards in q are treated literally. " +
                              "q under 2 chars returns an empty page. Admin and Staff only.")
     public ApiResponse<Page<OrderAdminSummaryDto>> searchOrders(
-            @RequestParam String q,
+            @RequestParam(defaultValue = "") String q,
             @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
         return ApiResponse.ok(orderAdminService.searchOrders(q, pageable));
     }

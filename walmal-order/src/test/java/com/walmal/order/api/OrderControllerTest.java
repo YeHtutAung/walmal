@@ -237,6 +237,24 @@ class OrderControllerTest {
     }
 
     @Test
+    @DisplayName("should_return200AndEmptyContent_when_adminSearchesWithoutQParam")
+    void should_return200AndEmptyContent_when_adminSearchesWithoutQParam() throws Exception {
+        AuthenticatedPrincipal admin = new AuthenticatedPrincipal(UUID.randomUUID(), "admin", "ADMIN");
+        // Missing q must default to "" (not 500 via the catch-all exception handler);
+        // the service's short-q guard then yields an empty page.
+        when(orderAdminService.searchOrders(eq(""), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        mockMvc.perform(get("/api/v1/orders/admin/search")
+                        .with(authentication(buildAuth(admin))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.content").isEmpty());
+
+        verify(orderAdminService).searchOrders(eq(""), any(Pageable.class));
+    }
+
+    @Test
     @DisplayName("should_return403_when_customerSearchesOrders")
     void should_return403_when_customerSearchesOrders() throws Exception {
         AuthenticatedPrincipal customer = new AuthenticatedPrincipal(UUID.randomUUID(), "cust", "CUSTOMER");
