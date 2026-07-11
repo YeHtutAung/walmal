@@ -172,7 +172,9 @@ public ApiResponse<Page<OrderAdminSummaryDto>> searchOrders(
 
 ### Task 3: Users search endpoint (TDD)
 
-**Files:** `UserRepository.java`, `AuthService.java` + impl, `AuthController.java`, `AuthServiceImplTest.java`, `AuthControllerTest.java`
+**Files:** `UserRepository.java`, `AuthService.java` + impl, `AuthController.java`, `AuthServiceImplTest.java`, `AuthControllerTest.java`, **plus (opening move, per Task 2's code review): new `walmal-common` `LikePatterns` utility** and retrofits in `ProductSearchServiceImpl`/`OrderAdminServiceImpl`
+
+**Step 0 (added after Task 2's review — rule of three):** `escapeLikeWildcards` now exists in two textually-divergent copies (inlined in `ProductSearchServiceImpl`, named helper in `OrderAdminServiceImpl`); Task 3 would create a third... except the users search uses a DERIVED `ContainingIgnoreCase` query which auto-escapes, so it does NOT need the helper. Therefore Step 0 is: extract `com.walmal.common.util.LikePatterns.escape(String)` (javadoc: backslash first, then `%`, `_`; used with `ESCAPE '\'` predicates) into `walmal-common`, retrofit the two existing call sites to use it, run both modules' suites green, and commit separately (`refactor: extract LIKE wildcard escaping to walmal-common`). The existing per-module unit tests are the regression net — they must pass unchanged.
 
 - [ ] **Step 1: Failing service unit test** — add to the existing `AuthServiceImplTest.java` (23 tests today; follow its in-file conventions exactly). Cases: short `q` → empty page, repository never called; valid `q "AbC"` → `findByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase("AbC", "AbC", pageable)` called (derived query handles case-insensitivity itself — pass the trimmed raw `q`, do NOT pre-lowercase) and rows mapped via the existing `toProfile` (assert `UserProfileResponse` fields).
 
@@ -227,6 +229,7 @@ public ResponseEntity<Page<UserProfileResponse>> searchUsers(
   - variant with null barcode broke nothing (covered implicitly by the above; assert no exception + correct results)
   - `q="alpha"` → product A (name regression); `q="acme"` → product A (brand regression)
   - `q=""` → both products (list-all preserved)
+  - **Literal-wildcard case (added after Task 1's review):** seed a variant with sku containing a literal underscore (e.g. `AB_C1`); assert `q="ab_c1"` matches it AND `q="ab-c1"` (or any single-char substitution like `abXc1`) does NOT — proving the `ESCAPE` clause works end-to-end against real Postgres, not just in the unit-level pattern assertion.
 
 - [ ] **Step 2: Order** — follow `OrderDailySummaryIntegrationTest`'s exact setup (JdbcTemplate INSERT with explicit known UUIDs — required here since ID-prefix matching needs controlled IDs; `@BeforeEach DELETE FROM order_orders` to clear the Flyway dev-seed row). Seed: order 1 id `aaaa1111-…` guest email `search-me@example.com`; order 2 id `bbbb2222-…` userId set, guestEmail NULL. Call `orderAdminService.searchOrders(...)`. Assert:
   - `q="aaaa1111"` → order 1 only; `q="AAAA1111"` (uppercase) → order 1 (case-folding on the CAST proven against real Postgres)
@@ -359,4 +362,4 @@ test("product search finds seeded product", async ({ page }) => {
 - [ ] `walmal-admin`: `npx tsc -b --noEmit`, `npm run build`, `npm run lint` (15-problem baseline unchanged)
 - [ ] `walmal-admin`: `npm run test:e2e` — 19/19 against a rebuilt JAR
 - [ ] The admin products list page still lists all products (the empty-`q` regression check, live)
-- [ ] KB updated in the same commits as the features they document, both repos
+- [ ] Backend KB updated by Task 5 (deliberately batched for the three related endpoints — one contract story, one commit) and frontend KB in Tasks 8-9's own commits
