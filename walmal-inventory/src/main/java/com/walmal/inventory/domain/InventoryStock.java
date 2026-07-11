@@ -23,6 +23,9 @@ import java.util.UUID;
                columnNames = {"variant_id", "location_id"}))
 public class InventoryStock extends BaseEntity {
 
+    /** Upper multiple of {@code lowStockThreshold} still classified as LOW by {@link #classifyHealth()}. */
+    private static final int LOW_STOCK_BAND_MULTIPLIER = 2;
+
     @Column(name = "variant_id", nullable = false)
     private UUID variantId;             // plain UUID — no FK to product module
 
@@ -112,6 +115,17 @@ public class InventoryStock extends BaseEntity {
 
     public boolean isExhausted() {
         return this.availableQuantity == 0;
+    }
+
+    // CRITICAL at/below threshold, LOW up to LOW_STOCK_BAND_MULTIPLIER x threshold, OK above that.
+    public StockHealthStatus classifyHealth() {
+        if (this.availableQuantity <= this.lowStockThreshold) {
+            return StockHealthStatus.CRITICAL;
+        }
+        if (this.availableQuantity <= this.lowStockThreshold * LOW_STOCK_BAND_MULTIPLIER) {
+            return StockHealthStatus.LOW;
+        }
+        return StockHealthStatus.OK;
     }
 
     // ── Getters / setters ─────────────────────────────────────────────────────

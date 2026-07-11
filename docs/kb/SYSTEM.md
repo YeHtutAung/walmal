@@ -56,6 +56,7 @@ Endpoints intended for consumption by `walmal-admin` (or other non-walmal client
 | Endpoint | Auth | Response |
 |----------|------|----------|
 | `GET /api/v1/orders/admin/daily-summary` | `ADMIN` or `STAFF` role (JWT) | `ApiResponse<List<DailyOrderSummaryDto>>` — 30 entries, one per UTC day `[today-29, today]` inclusive, zero-filled. Each: `{date: LocalDate, orderCount: long, revenue: BigDecimal (scale 2), currency: String}`. `orderCount` = all statuses; `revenue` = sum of `FULFILLED`-order `totalAmount` for that day; `currency` = first `FULFILLED` order's currency in the window, `"USD"` if none. |
+| `GET /api/v1/inventory/categories/stock-health` | `ADMIN`, `STAFF`, or `WAREHOUSE_MANAGER` role (JWT) | `ApiResponse<List<CategoryStockHealthDto>>` — one entry per category (including categories with zero products), sorted alphabetically by category name. Each: `{categoryId, categoryName, productCount, okCount, lowCount, criticalCount}`. `productCount` = distinct products in that category (including variant-less products); `okCount`/`lowCount`/`criticalCount` = per-variant stock-row health tallies (`InventoryStock.classifyHealth()`) — these need not sum to `productCount` (a category can have products with zero stock rows). Owned by `walmal-inventory` (see `docs/kb/architecture.md` "Admin Aggregation Endpoints" for the module-ownership rationale). Not yet consumed by any client as of 2026-07-11 — planned for `walmal-admin`. |
 
 ## Environment Variables Matrix (names + purpose only — never values)
 

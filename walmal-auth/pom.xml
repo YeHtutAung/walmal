@@ -14,6 +14,11 @@
     <name>walmal-auth</name>
     <description>Authentication and identity module — JWT issuance, token validation, user management</description>
 
+    <properties>
+        <!-- Default: exclude integration tests. Override with -DexcludedGroups= to run them. -->
+        <excludedGroups>integration</excludedGroups>
+    </properties>
+
     <dependencies>
         <!-- walmal-common: DomainEvent, DomainEventPublisher, CacheService, AuditService, BaseEntity -->
         <!-- walmal-infrastructure is NOT a dependency here. Concrete impls wired in walmal-app. -->
@@ -94,6 +99,17 @@
             <artifactId>postgresql</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Flyway at test scope for integration tests -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -103,8 +119,9 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <!-- Exclude @Tag("integration") tests from the default test phase.
-                         Run integration tests explicitly with: mvn test -Dgroups=integration -->
-                    <excludedGroups>integration</excludedGroups>
+                         Run integration tests explicitly with: mvn test -Dgroups=integration
+                         Override default with: mvn test -DexcludedGroups= -->
+                    <excludedGroups>${excludedGroups}</excludedGroups>
                 </configuration>
             </plugin>
         </plugins>

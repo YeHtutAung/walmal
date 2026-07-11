@@ -14,6 +14,11 @@
     <name>walmal-app</name>
     <description>Spring Boot application assembly</description>
 
+    <properties>
+        <!-- Default: exclude integration tests. Override with -DexcludedGroups= to run them. -->
+        <excludedGroups>integration</excludedGroups>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.walmal</groupId>
@@ -118,8 +123,9 @@
                     <!-- Exclude @Tag("integration") tests from the default test phase.
                          Run integration tests explicitly with: mvn test -Dgroups=integration
                          Integration tests in walmal-app require Docker Compose services
-                         (postgres, redis, rabbitmq) running locally. -->
-                    <excludedGroups>integration</excludedGroups>
+                         (postgres, redis, rabbitmq) running locally.
+                         Override default with: mvn test -DexcludedGroups= -->
+                    <excludedGroups>${excludedGroups}</excludedGroups>
                 </configuration>
             </plugin>
         </plugins>

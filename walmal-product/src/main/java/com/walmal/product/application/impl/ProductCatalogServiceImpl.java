@@ -3,11 +3,13 @@ package com.walmal.product.application.impl;
 import com.walmal.common.cache.CacheService;
 import com.walmal.common.exception.ResourceNotFoundException;
 import com.walmal.product.application.ProductCatalogService;
+import com.walmal.product.application.dto.CategoryProductVariantRow;
 import com.walmal.product.application.dto.ProductDetailDto;
 import com.walmal.product.application.dto.VariantSummaryDto;
 import com.walmal.product.domain.Product;
 import com.walmal.product.domain.ProductStatus;
 import com.walmal.product.domain.ProductVariant;
+import com.walmal.product.infrastructure.CategoryRepository;
 import com.walmal.product.infrastructure.ProductImageRepository;
 import com.walmal.product.infrastructure.ProductImageStorageAdapter;
 import com.walmal.product.infrastructure.ProductPriceRepository;
@@ -20,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -48,19 +51,22 @@ public class ProductCatalogServiceImpl implements ProductCatalogService {
     private final ProductImageRepository imageRepository;
     private final ProductImageStorageAdapter imageStorageAdapter;
     private final CacheService cacheService;
+    private final CategoryRepository categoryRepository;
 
     public ProductCatalogServiceImpl(ProductVariantRepository variantRepository,
                                      ProductRepository productRepository,
                                      ProductPriceRepository priceRepository,
                                      ProductImageRepository imageRepository,
                                      ProductImageStorageAdapter imageStorageAdapter,
-                                     CacheService cacheService) {
+                                     CacheService cacheService,
+                                     CategoryRepository categoryRepository) {
         this.variantRepository = variantRepository;
         this.productRepository = productRepository;
         this.priceRepository = priceRepository;
         this.imageRepository = imageRepository;
         this.imageStorageAdapter = imageStorageAdapter;
         this.cacheService = cacheService;
+        this.categoryRepository = categoryRepository;
     }
 
     @Override
@@ -124,6 +130,11 @@ public class ProductCatalogServiceImpl implements ProductCatalogService {
 
         result.ifPresent(dto -> cacheService.put(cacheKey, dto, VARIANT_TTL));
         return result;
+    }
+
+    @Override
+    public List<CategoryProductVariantRow> getAllCategoryProductVariantMappings() {
+        return categoryRepository.findCategoryProductVariantRows();
     }
 
     // ── Mapping helpers ───────────────────────────────────────────────────────

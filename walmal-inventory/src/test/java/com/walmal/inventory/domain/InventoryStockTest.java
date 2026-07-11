@@ -100,4 +100,33 @@ class InventoryStockTest {
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("negative stock");
     }
+
+    @Test
+    @DisplayName("should classify as CRITICAL when available is at or below threshold")
+    void should_classifyAsCritical_when_availableAtOrBelowThreshold() {
+        assertThat(new InventoryStock(UUID.randomUUID(), location, 10, 10).classifyHealth())
+                .isEqualTo(StockHealthStatus.CRITICAL);
+        assertThat(new InventoryStock(UUID.randomUUID(), location, 5, 10).classifyHealth())
+                .isEqualTo(StockHealthStatus.CRITICAL);
+        assertThat(new InventoryStock(UUID.randomUUID(), location, 0, 10).classifyHealth())
+                .isEqualTo(StockHealthStatus.CRITICAL);
+    }
+
+    @Test
+    @DisplayName("should classify as LOW when available is between threshold and double threshold inclusive")
+    void should_classifyAsLow_when_availableBetweenThresholdAndDoubleThresholdInclusive() {
+        assertThat(new InventoryStock(UUID.randomUUID(), location, 11, 10).classifyHealth())
+                .isEqualTo(StockHealthStatus.LOW);
+        assertThat(new InventoryStock(UUID.randomUUID(), location, 20, 10).classifyHealth())
+                .isEqualTo(StockHealthStatus.LOW);
+    }
+
+    @Test
+    @DisplayName("should classify as OK when available is above double threshold")
+    void should_classifyAsOk_when_availableAboveDoubleThreshold() {
+        assertThat(new InventoryStock(UUID.randomUUID(), location, 21, 10).classifyHealth())
+                .isEqualTo(StockHealthStatus.OK);
+        assertThat(new InventoryStock(UUID.randomUUID(), location, 1000, 10).classifyHealth())
+                .isEqualTo(StockHealthStatus.OK);
+    }
 }

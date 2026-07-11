@@ -26,6 +26,8 @@ public interface InventoryStockRepository extends JpaRepository<InventoryStock, 
 
     List<InventoryStock> findByVariantId(UUID variantId);
 
+    List<InventoryStock> findByVariantIdIn(List<UUID> variantIds);
+
     List<InventoryStock> findByLocationId(UUID locationId);
 
     /** Paginated list with location eagerly loaded to avoid N+1. */
