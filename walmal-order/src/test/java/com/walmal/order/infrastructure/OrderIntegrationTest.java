@@ -288,6 +288,11 @@ class OrderIntegrationTest {
                             "SKU-001", "BC-001", "Integration Test Product",
                             "Red", "M", ProductStatus.ACTIVE));
                 }
+
+                @Override
+                public java.util.List<com.walmal.product.application.dto.CategoryProductVariantRow> getAllCategoryProductVariantMappings() {
+                    return java.util.List.of();
+                }
             };
         }
 
