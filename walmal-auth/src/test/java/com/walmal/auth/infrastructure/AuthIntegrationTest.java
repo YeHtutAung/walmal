@@ -1,5 +1,6 @@
 package com.walmal.auth.infrastructure;
 
+import com.walmal.auth.AuthTestApplication;
 import com.walmal.auth.api.dto.CreateUserRequest;
 import com.walmal.auth.api.dto.LoginRequest;
 import com.walmal.auth.api.dto.RegisterRequest;
@@ -26,12 +27,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.autoconfigure.mail.MailSenderAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -363,7 +367,24 @@ class AuthIntegrationTest {
             MailSenderAutoConfiguration.class
     })
     @EnableConfigurationProperties(JwtProperties.class)
-    @ComponentScan(basePackages = "com.walmal.auth")
+    // excludeFilters: AuthTestApplication is itself @SpringBootApplication (i.e.
+    // @EnableAutoConfiguration + @ComponentScan). Without this exclusion, this scan
+    // picks it up as a plain @Configuration bean, whose own @EnableAutoConfiguration
+    // fires a second time alongside this class's — duplicate-registering
+    // JPA-repository beans (e.g. userRepository) and failing context startup.
+    @ComponentScan(basePackages = "com.walmal.auth",
+            excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE,
+                    classes = AuthTestApplication.class))
+    // Explicit entity/repository scan: this class (com.walmal.auth.infrastructure)
+    // is a sibling of com.walmal.auth.domain (where the User @Entity lives), not an
+    // ancestor. Spring Boot's implicit @EnableAutoConfiguration-driven entity/repo
+    // scan defaults to this class's own package, which would miss the domain
+    // package entirely ("Not a managed type: class com.walmal.auth.domain.User")
+    // now that AuthTestApplication (whose package is the com.walmal.auth parent) is
+    // excluded above. Declaring both explicitly removes the dependency on implicit
+    // package inference altogether.
+    @EntityScan(basePackages = "com.walmal.auth.domain")
+    @EnableJpaRepositories(basePackages = "com.walmal.auth.infrastructure")
     static class TestConfig {
 
         @Bean
