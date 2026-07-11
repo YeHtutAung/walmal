@@ -508,6 +508,25 @@ class AuthServiceImplTest {
                 "AbC", "AbC", pageable);
     }
 
+    @Test
+    @DisplayName("should_notEscapeLikeWildcards_when_searchUsersQueryContainsUnderscore")
+    void should_notEscapeLikeWildcards_when_searchUsersQueryContainsUnderscore() {
+        // Symmetric lock to product/order's underscore tests: theirs prove manual
+        // escaping happens (raw JPQL paths); this proves it does NOT here — the
+        // derived query escapes internally, so LikePatterns.escape would double-escape.
+        User user = buildUser(Role.CUSTOMER, "pass1234");
+        Pageable pageable = PageRequest.of(0, 10);
+        when(userRepository.findByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(
+                "a_b", "a_b", pageable))
+                .thenReturn(new PageImpl<>(List.of(user)));
+
+        Page<UserProfileResponse> page = authService.searchUsers(" a_b ", pageable);
+
+        assertThat(page.getTotalElements()).isEqualTo(1);
+        verify(userRepository).findByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(
+                "a_b", "a_b", pageable);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private User buildUser(Role role, String rawPassword) {
