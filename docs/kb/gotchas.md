@@ -8,7 +8,7 @@
 
 ## Maven `-pl` Without `-am`
 
-Running `./mvnw -pl <module> test` without `-am` compiles against stale `walmal-common` in `~/.m2`, producing phantom "does not override" or "symbol not found" errors. Always add `-am`.
+Running `./mvnw -pl <module> test` without `-am` compiles against stale `walmal-common` in `~/.m2`, producing phantom "does not override" or "symbol not found" errors. If the module compiles but references a NEW walmal-common class at runtime, the symptom is instead a phantom `NoClassDefFoundError` in otherwise-green tests (bit the global-search feature: `LikePatterns` "missing" in walmal-order until `-am` was added). Always add `-am`.
 
 ## Docker Desktop / WSL (environment note — this machine only)
 
