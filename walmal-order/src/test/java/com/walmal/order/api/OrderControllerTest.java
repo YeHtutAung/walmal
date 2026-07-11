@@ -14,6 +14,7 @@ import com.walmal.order.application.OrderAdminService;
 import com.walmal.order.application.OrderCreationService;
 import com.walmal.order.application.OrderFulfillmentService;
 import com.walmal.order.application.OrderQueryService;
+import com.walmal.order.application.dto.DailyOrderSummaryDto;
 import com.walmal.order.application.dto.OrderDetailDto;
 import com.walmal.order.application.dto.OrderSummaryDto;
 import com.walmal.order.domain.OrderStatus;
@@ -37,6 +38,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -183,6 +185,31 @@ class OrderControllerTest {
                 .andExpect(jsonPath("$.success").value(true));
 
         verify(orderAdminService).listAllOrders(isNull(), any(Pageable.class));
+    }
+
+    // ── Admin daily summary ──────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should_return200AndSummaryList_when_adminRequestsDailySummary")
+    void should_return200AndSummaryList_when_adminRequestsDailySummary() throws Exception {
+        AuthenticatedPrincipal admin = new AuthenticatedPrincipal(UUID.randomUUID(), "admin", "ADMIN");
+        when(orderAdminService.getDailySummary()).thenReturn(List.of(
+                new DailyOrderSummaryDto(LocalDate.of(2026, 7, 11), 3, new BigDecimal("100.00"), "USD")
+        ));
+        mockMvc.perform(get("/api/v1/orders/admin/daily-summary")
+                        .with(authentication(buildAuth(admin))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].orderCount").value(3));
+    }
+
+    @Test
+    @DisplayName("should_return403_when_customerRequestsDailySummary")
+    void should_return403_when_customerRequestsDailySummary() throws Exception {
+        AuthenticatedPrincipal customer = new AuthenticatedPrincipal(UUID.randomUUID(), "cust", "CUSTOMER");
+        mockMvc.perform(get("/api/v1/orders/admin/daily-summary")
+                        .with(authentication(buildAuth(customer))))
+                .andExpect(status().isForbidden());
     }
 
     // ── GET order status ──────────────────────────────────────────────────────

@@ -9,6 +9,7 @@ import com.walmal.order.application.OrderAdminService;
 import com.walmal.order.application.OrderCreationService;
 import com.walmal.order.application.OrderFulfillmentService;
 import com.walmal.order.application.OrderQueryService;
+import com.walmal.order.application.dto.DailyOrderSummaryDto;
 import com.walmal.order.application.dto.OrderAdminSummaryDto;
 import com.walmal.order.application.dto.OrderDetailDto;
 import com.walmal.order.application.dto.OrderLineItem;
@@ -27,6 +28,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -179,6 +181,14 @@ public class OrderController {
             @RequestParam(required = false) OrderStatus status,
             @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
         return ApiResponse.ok(orderAdminService.listAllOrders(status, pageable));
+    }
+
+    @GetMapping("/admin/daily-summary")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    @Operation(summary = "Daily order/revenue summary (admin)",
+               description = "Returns a 30-day, zero-filled daily order count + FULFILLED revenue series. Admin and Staff only.")
+    public ApiResponse<List<DailyOrderSummaryDto>> getDailySummary() {
+        return ApiResponse.ok(orderAdminService.getDailySummary());
     }
 
     @PatchMapping("/{orderId}/status")
