@@ -36,6 +36,14 @@
 | Main application config | `walmal-app/src/main/resources/application.yml` |
 | Test profile config | `walmal-app/src/main/resources/application-test.yml` |
 
+## Admin Aggregation Endpoints
+
+`GET /api/v1/orders/admin/daily-summary` (`walmal-order`, `OrderController`) — `@PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")`, same gate as `/orders/admin`. Returns `ApiResponse<List<DailyOrderSummaryDto>>`: exactly 30 entries, one per UTC day `[today-29, today]` inclusive, zero-filled for days with no orders. Each entry: `{date: LocalDate, orderCount: long, revenue: BigDecimal (scale 2), currency: String}`. `orderCount` counts orders of every status that day; `revenue` sums `totalAmount` for `FULFILLED`-status orders only that day; `currency` is the first `FULFILLED` order's currency across the whole window, defaulting to `"USD"` if none fulfilled.
+
+Implementation: `OrderAdminServiceImpl.getDailySummary()` computes the UTC cutoff (`today.minusDays(29)`), calls `OrderRepository.findForDailySummary(Instant cutoff)` — a JPQL constructor-projection query returning lightweight `OrderTimeseriesRow` records (`createdAt`, `totalAmount`, `currency`, `status`), not full `Order` entities — then delegates to the pure, unit-testable `OrderAdminServiceImpl.buildDailySummary(List<OrderTimeseriesRow>, LocalDate)` for date-bucketing, zero-fill, and summing.
+
+This is this codebase's first GROUP BY-equivalent (date-bucketing/aggregation) pattern: JPQL projection query + Java-side grouping, rather than a native SQL `GROUP BY`. It is **not** the first JPQL constructor-projection query overall — `walmal-pos`'s `PosSaleRepository.findSyncConflicts` already used `SELECT new ...Dto(...)` projections to avoid N+1 loads. What's new here specifically is aggregating a flat projection into date buckets in application code afterward. Future features needing similar time-series/rollup endpoints should follow this precedent: project a flat row DTO in the repository, keep the actual grouping/summing logic in a separate pure method (easy to unit test without a database), and call it from a thin service method that only computes the query bounds.
+
 ## Flyway Migration Map (V1–V15)
 
 | Version | Description |

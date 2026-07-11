@@ -49,6 +49,14 @@ Client parsing precedence: field errors > `message` > `detail`.
 - Delivery guarantee: at-least-once (relay retries up to 60 attempts before parking a row as FAILED; a delete rollback can re-send a row). Consumers must be idempotent.
 - FAILED-row recovery: reset via `UPDATE outbox_events SET status='PENDING', attempts=0 WHERE status='FAILED'`. See `docs/DR_PLAN.md` Scenario 6.
 
+## Admin-Facing Endpoint Contracts
+
+Endpoints intended for consumption by `walmal-admin` (or other non-walmal clients) that aren't covered by the generic Auth/Error contracts above.
+
+| Endpoint | Auth | Response |
+|----------|------|----------|
+| `GET /api/v1/orders/admin/daily-summary` | `ADMIN` or `STAFF` role (JWT) | `ApiResponse<List<DailyOrderSummaryDto>>` — 30 entries, one per UTC day `[today-29, today]` inclusive, zero-filled. Each: `{date: LocalDate, orderCount: long, revenue: BigDecimal (scale 2), currency: string}`. `orderCount` = all statuses; `revenue` = sum of `FULFILLED`-order `totalAmount` for that day; `currency` = first `FULFILLED` order's currency in the window, `"USD"` if none. |
+
 ## Environment Variables Matrix (names + purpose only — never values)
 
 ### walmal (Spring Boot)
