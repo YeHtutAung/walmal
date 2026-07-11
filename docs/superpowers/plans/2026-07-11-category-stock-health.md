@@ -428,14 +428,14 @@ public class CategoryStockHealthServiceImpl implements CategoryStockHealthServic
                             .filter(Objects::nonNull)
                             .distinct()
                             .count();
-                    List<StockHealthStatus> statuses = categoryRows.stream()
+                    Map<StockHealthStatus, Long> tally = categoryRows.stream()
                             .map(CategoryProductVariantRow::variantId)
                             .filter(Objects::nonNull)
                             .flatMap(vId -> healthByVariant.getOrDefault(vId, List.of()).stream())
-                            .toList();
-                    long ok = statuses.stream().filter(s -> s == StockHealthStatus.OK).count();
-                    long low = statuses.stream().filter(s -> s == StockHealthStatus.LOW).count();
-                    long critical = statuses.stream().filter(s -> s == StockHealthStatus.CRITICAL).count();
+                            .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+                    long ok = tally.getOrDefault(StockHealthStatus.OK, 0L);
+                    long low = tally.getOrDefault(StockHealthStatus.LOW, 0L);
+                    long critical = tally.getOrDefault(StockHealthStatus.CRITICAL, 0L);
                     return new CategoryStockHealthDto(entry.getKey(), categoryName, productCount, ok, low, critical);
                 })
                 .sorted(Comparator.comparing(CategoryStockHealthDto::categoryName))
