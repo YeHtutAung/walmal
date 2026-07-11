@@ -85,6 +85,19 @@ public interface AuthService {
     Page<UserProfileResponse> listUsers(String role, Boolean active, Pageable pageable);
 
     /**
+     * Admin-only: searches users by username or email substring (case-insensitive).
+     *
+     * <p>Returns an empty page when {@code q} is null or shorter than 2 characters
+     * after trimming (guards against full-table scans on trivial input). The trimmed
+     * raw query is passed straight to a Spring Data derived {@code ContainingIgnoreCase}
+     * query, which handles both case-insensitivity and LIKE-wildcard escaping itself —
+     * callers must not pre-lowercase or escape.</p>
+     *
+     * @param q search term; matched as substring against username and email
+     */
+    Page<UserProfileResponse> searchUsers(String q, Pageable pageable);
+
+    /**
      * Admin-only: returns the profile of a single user.
      *
      * @throws com.walmal.common.exception.ResourceNotFoundException if userId not found

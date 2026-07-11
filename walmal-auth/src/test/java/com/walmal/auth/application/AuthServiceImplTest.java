@@ -451,6 +451,63 @@ class AuthServiceImplTest {
         verify(auditService, never()).log(any());
     }
 
+    // ── Search users ──────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should_returnEmptyPage_when_searchUsersCalledWithNullQuery")
+    void should_returnEmptyPage_when_searchUsersCalledWithNullQuery() {
+        Page<UserProfileResponse> page = authService.searchUsers(null, PageRequest.of(0, 10));
+
+        assertThat(page.getTotalElements()).isZero();
+        verify(userRepository, never())
+                .findByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("should_returnEmptyPage_when_searchUsersCalledWithSingleCharQuery")
+    void should_returnEmptyPage_when_searchUsersCalledWithSingleCharQuery() {
+        Page<UserProfileResponse> page = authService.searchUsers("a", PageRequest.of(0, 10));
+
+        assertThat(page.getTotalElements()).isZero();
+        verify(userRepository, never())
+                .findByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("should_returnEmptyPage_when_searchUsersCalledWithWhitespaceQuery")
+    void should_returnEmptyPage_when_searchUsersCalledWithWhitespaceQuery() {
+        Page<UserProfileResponse> page = authService.searchUsers(" ", PageRequest.of(0, 10));
+
+        assertThat(page.getTotalElements()).isZero();
+        verify(userRepository, never())
+                .findByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("should_passTrimmedRawQueryToDerivedFinder_when_searchUsersCalled")
+    void should_passTrimmedRawQueryToDerivedFinder_when_searchUsersCalled() {
+        // The derived ContainingIgnoreCase query handles case-insensitivity AND
+        // LIKE-wildcard escaping itself, so the service must pass the trimmed
+        // RAW query — no pre-lowercasing, no manual escaping.
+        User user = buildUser(Role.CUSTOMER, "pass1234");
+        Pageable pageable = PageRequest.of(0, 10);
+        when(userRepository.findByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(
+                "AbC", "AbC", pageable))
+                .thenReturn(new PageImpl<>(List.of(user)));
+
+        Page<UserProfileResponse> page = authService.searchUsers(" AbC ", pageable);
+
+        assertThat(page.getTotalElements()).isEqualTo(1);
+        UserProfileResponse profile = page.getContent().get(0);
+        assertThat(profile.id()).isEqualTo(user.getId());
+        assertThat(profile.username()).isEqualTo("alice");
+        assertThat(profile.email()).isEqualTo("alice@example.com");
+        assertThat(profile.role()).isEqualTo("CUSTOMER");
+        assertThat(profile.isActive()).isTrue();
+        verify(userRepository).findByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(
+                "AbC", "AbC", pageable);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private User buildUser(Role role, String rawPassword) {
