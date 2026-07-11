@@ -7,6 +7,7 @@ import com.walmal.product.domain.Category;
 import com.walmal.product.domain.Product;
 import com.walmal.product.domain.ProductStatus;
 import com.walmal.product.domain.ProductVariant;
+import com.walmal.product.infrastructure.CategoryRepository;
 import com.walmal.product.infrastructure.ProductImageRepository;
 import com.walmal.product.infrastructure.ProductImageStorageAdapter;
 import com.walmal.product.infrastructure.ProductPriceRepository;
@@ -51,6 +52,7 @@ class ProductCatalogServiceImplTest {
     @Mock ProductImageRepository imageRepository;
     @Mock ProductImageStorageAdapter imageStorageAdapter;
     @Mock CacheService cacheService;
+    @Mock CategoryRepository categoryRepository;
 
     ProductCatalogServiceImpl service;
 
@@ -59,7 +61,7 @@ class ProductCatalogServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new ProductCatalogServiceImpl(variantRepository, productRepository, priceRepository, imageRepository, imageStorageAdapter, cacheService);
+        service = new ProductCatalogServiceImpl(variantRepository, productRepository, priceRepository, imageRepository, imageStorageAdapter, cacheService, categoryRepository);
     }
 
     @Test

@@ -1,19 +1,21 @@
 package com.walmal.product.application;
 
+import com.walmal.product.application.dto.CategoryProductVariantRow;
 import com.walmal.product.application.dto.ProductDetailDto;
 import com.walmal.product.application.dto.VariantSummaryDto;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Cross-module service interface — consumed by Order and POS modules.
+ * Cross-module service interface — consumed by Order, POS, and Inventory modules.
  *
  * <p>ISP: Order and POS need catalog lookups only. They do not need search or price mutation.
  * This interface exposes only what those consumers need.</p>
  *
- * <p>Architecture rule: Order and POS depend on this interface only. They never import
- * {@code ProductRepository} or any other infrastructure class from this module.</p>
+ * <p>Architecture rule: Order, POS, and Inventory depend on this interface only. They never
+ * import {@code ProductRepository} or any other infrastructure class from this module.</p>
  */
 public interface ProductCatalogService {
 
@@ -48,4 +50,12 @@ public interface ProductCatalogService {
      * lookup-by-id use case without requiring the caller to supply a SKU upfront.</p>
      */
     Optional<VariantSummaryDto> findVariantById(UUID variantId);
+
+    /**
+     * Flat category → product → variant rows for every category, including categories with zero
+     * products and products with zero variants (both appear with null downstream IDs). Used by
+     * walmal-inventory to build a category-level stock-health rollup — see
+     * docs/superpowers/specs/2026-07-11-category-stock-health-design.md.
+     */
+    List<CategoryProductVariantRow> getAllCategoryProductVariantMappings();
 }
