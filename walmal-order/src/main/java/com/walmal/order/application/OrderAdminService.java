@@ -52,4 +52,10 @@ public interface OrderAdminService {
      * @param endDateUtc the last (most recent) day of the 30-day window, in UTC
      */
     List<DailyOrderSummaryDto> buildDailySummary(List<OrderTimeseriesRow> rows, LocalDate endDateUtc);
+
+    /**
+     * Fetches the last 30 days of order rows (UTC, inclusive of today) and buckets
+     * them into a zero-filled daily summary via {@link #buildDailySummary}.
+     */
+    List<DailyOrderSummaryDto> getDailySummary();
 }

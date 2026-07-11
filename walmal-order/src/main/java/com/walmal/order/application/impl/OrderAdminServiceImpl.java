@@ -130,4 +130,12 @@ public class OrderAdminServiceImpl implements OrderAdminService {
         }
         return result;
     }
+
+    @Override
+    public List<DailyOrderSummaryDto> getDailySummary() {
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        Instant cutoff = today.minusDays(29).atStartOfDay(ZoneOffset.UTC).toInstant();
+        List<OrderTimeseriesRow> rows = orderRepository.findForDailySummary(cutoff);
+        return buildDailySummary(rows, today);
+    }
 }
