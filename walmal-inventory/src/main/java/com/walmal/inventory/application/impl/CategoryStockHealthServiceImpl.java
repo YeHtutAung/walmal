@@ -49,9 +49,12 @@ public class CategoryStockHealthServiceImpl implements CategoryStockHealthServic
                 .distinct()
                 .toList();
 
-        Map<UUID, List<StockHealthStatus>> healthByVariant = stockRepository.findByVariantIdIn(variantIds).stream()
-                .collect(Collectors.groupingBy(InventoryStock::getVariantId,
-                        Collectors.mapping(InventoryStock::classifyHealth, Collectors.toList())));
+        // Per-variant health counts, pre-tallied in one pass — avoids materializing a raw
+        // List<StockHealthStatus> per variant just to re-filter it three times below.
+        Map<UUID, Map<StockHealthStatus, Long>> healthCountsByVariant =
+                stockRepository.findByVariantIdIn(variantIds).stream()
+                        .collect(Collectors.groupingBy(InventoryStock::getVariantId,
+                                Collectors.groupingBy(InventoryStock::classifyHealth, Collectors.counting())));
 
         return byCategory.entrySet().stream()
                 .map(entry -> {
@@ -62,14 +65,18 @@ public class CategoryStockHealthServiceImpl implements CategoryStockHealthServic
                             .filter(Objects::nonNull)
                             .distinct()
                             .count();
-                    List<StockHealthStatus> statuses = categoryRows.stream()
-                            .map(CategoryProductVariantRow::variantId)
-                            .filter(Objects::nonNull)
-                            .flatMap(vId -> healthByVariant.getOrDefault(vId, List.of()).stream())
-                            .toList();
-                    long ok = statuses.stream().filter(s -> s == StockHealthStatus.OK).count();
-                    long low = statuses.stream().filter(s -> s == StockHealthStatus.LOW).count();
-                    long critical = statuses.stream().filter(s -> s == StockHealthStatus.CRITICAL).count();
+
+                    long ok = 0, low = 0, critical = 0;
+                    for (CategoryProductVariantRow row : categoryRows) {
+                        UUID variantId = row.variantId();
+                        if (variantId == null) continue;
+                        Map<StockHealthStatus, Long> counts = healthCountsByVariant.get(variantId);
+                        if (counts == null) continue;
+                        ok += counts.getOrDefault(StockHealthStatus.OK, 0L);
+                        low += counts.getOrDefault(StockHealthStatus.LOW, 0L);
+                        critical += counts.getOrDefault(StockHealthStatus.CRITICAL, 0L);
+                    }
+
                     return new CategoryStockHealthDto(entry.getKey(), categoryName, productCount, ok, low, critical);
                 })
                 .sorted(Comparator.comparing(CategoryStockHealthDto::categoryName))
