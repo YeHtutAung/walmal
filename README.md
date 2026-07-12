@@ -1,7 +1,7 @@
 # walmal
 
 Modular-monolith e-commerce backend (Spring Boot 3.4.5, Java 21) powering a
-customer storefront and an ops admin. Nine Maven modules, transactional
+customer storefront and an ops admin. Ten Maven modules, transactional
 outbox for reliable event delivery, JWT auth with rotating single-use
 refresh tokens, and a real (not stubbed) Stripe checkout integration.
 
@@ -53,7 +53,7 @@ graph TB
     Inventory -->|"publish"| Outbox
     Outbox -->|"relay 1s poll"| Rabbit
     Rabbit -->|"order.created"| Warehouse
-    Rabbit -->|"inventory.release"| Order
+    Rabbit -->|"reservation.released"| Order
     Rabbit -->|"order/shipment events"| Notification
 
     Auth --> Postgres
@@ -126,6 +126,11 @@ front of RabbitMQ — never a direct cross-module method call for async work.
   product's catalogue service) follow the one-directional Maven dependency
   graph; a design that would create a reactor cycle was caught and flipped
   during review rather than shipped. See `docs/adr/`.
+
+- **Both frontends tested end-to-end against the real backend.** No mocked
+  API layer: Playwright drives real Postgres, RabbitMQ, and Stripe test
+  keys — 96 tests in the storefront (32 unique specs across chromium,
+  firefox, and webkit) plus 21 in the admin, all passing.
 
 - **Load-tested, not just functionally tested.** Six k6 scenarios (auth,
   product, checkout, inventory, POS, warehouse) run against the real
