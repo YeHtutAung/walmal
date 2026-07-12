@@ -129,7 +129,7 @@ front of RabbitMQ — never a direct cross-module method call for async work.
 
 - **Both frontends tested end-to-end against the real backend.** No mocked
   API layer: Playwright runs against real Postgres, RabbitMQ, and Stripe test
-  keys — 96 tests in the storefront (32 unique specs across chromium,
+  keys — 96 tests in the storefront (32 unique tests across chromium,
   firefox, and webkit) plus 21 in the admin, all passing.
 
 - **Load-tested, not just functionally tested.** Six k6 scenarios (auth,
@@ -192,7 +192,7 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 
 - **Unit tests** (no containers, Mockito): `./mvnw test`
 - **Integration tests** (`@Tag("integration")`, Testcontainers — Postgres/Redis/RabbitMQ per test class, excluded by default): `./mvnw test -DexcludedGroups=`
-- **walmal-store E2E** (Playwright, real backend + Stripe test mode): 96 tests pass — 32 unique specs across chromium, firefox, and webkit.
+- **walmal-store E2E** (Playwright, real backend + Stripe test mode): 96 tests pass — 32 unique tests across chromium, firefox, and webkit.
 - **walmal-admin E2E** (Playwright, Chromium, real backend): 21 tests pass, plus 65 Vitest unit tests across 13 files.
 - **k6 load tests** (`tests/performance/`): 6 scenarios — auth, product, checkout, inventory, POS, warehouse — all thresholds currently met.
 
