@@ -286,11 +286,45 @@ class AuthServiceImplTest {
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
 
         UserProfileResponse profile = authService.createUser(
-                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "STAFF"), "admin");
+                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "STAFF", null), "admin");
 
         assertThat(profile.role()).isEqualTo("STAFF");
         assertThat(profile.isActive()).isTrue();
         verify(eventPublisher).publish(any(DomainEvent.class), eq("auth.user.registered"));
+    }
+
+    @Test
+    @DisplayName("should_createInactiveUser_when_activeFalse")
+    void should_createInactiveUser_when_activeFalse() {
+        when(userRepository.existsByUsername("staff2")).thenReturn(false);
+        when(userRepository.existsByEmail("staff2@walmal.com")).thenReturn(false);
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User u = invocation.getArgument(0);
+            assertThat(u.isActive()).isFalse();
+            return u;
+        });
+
+        UserProfileResponse profile = authService.createUser(
+                new CreateUserRequest("staff2", "staff2@walmal.com", "password123", "STAFF", false), "admin");
+
+        assertThat(profile.isActive()).isFalse();
+    }
+
+    @Test
+    @DisplayName("should_createActiveUser_when_activeNull")
+    void should_createActiveUser_when_activeNull() {
+        when(userRepository.existsByUsername("staff3")).thenReturn(false);
+        when(userRepository.existsByEmail("staff3@walmal.com")).thenReturn(false);
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User u = invocation.getArgument(0);
+            assertThat(u.isActive()).isTrue();
+            return u;
+        });
+
+        UserProfileResponse profile = authService.createUser(
+                new CreateUserRequest("staff3", "staff3@walmal.com", "password123", "STAFF", null), "admin");
+
+        assertThat(profile.isActive()).isTrue();
     }
 
     @Test
@@ -307,7 +341,7 @@ class AuthServiceImplTest {
         });
 
         UserProfileResponse profile = authService.createUser(
-                new CreateUserRequest("admin2", "admin2@walmal.com", "password123", "ADMIN"), "admin");
+                new CreateUserRequest("admin2", "admin2@walmal.com", "password123", "ADMIN", null), "admin");
 
         assertThat(profile.role()).isEqualTo("ADMIN");
     }
@@ -319,7 +353,7 @@ class AuthServiceImplTest {
         when(userRepository.existsByEmail("staff1@walmal.com")).thenReturn(false);
 
         assertThatThrownBy(() -> authService.createUser(
-                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "SUPERADMIN"), "admin"))
+                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "SUPERADMIN", null), "admin"))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("Invalid role");
     }
@@ -330,7 +364,7 @@ class AuthServiceImplTest {
         when(userRepository.existsByUsername("existing")).thenReturn(true);
 
         assertThatThrownBy(() -> authService.createUser(
-                new CreateUserRequest("existing", "new@walmal.com", "password123", "STAFF"), "admin"))
+                new CreateUserRequest("existing", "new@walmal.com", "password123", "STAFF", null), "admin"))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("Username already taken");
     }

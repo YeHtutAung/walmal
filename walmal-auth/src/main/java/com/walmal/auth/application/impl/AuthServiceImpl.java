@@ -261,6 +261,9 @@ public class AuthServiceImpl implements AuthService {
 
         String hash = passwordEncoder.encode(request.password());
         User user = new User(request.username(), request.email(), hash, role);
+        if (Boolean.FALSE.equals(request.active())) {
+            user.setActive(false);
+        }
         user = userRepository.save(user);
 
         log.info("User created by admin {}: {} (role={})", performedBy, user.getUsername(), role);

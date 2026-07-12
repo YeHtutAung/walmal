@@ -21,5 +21,12 @@ public record CreateUserRequest(
         String password,
 
         @NotBlank(message = "role is required")
-        String role
+        String role,
+
+        /**
+         * Optional initial active status. {@code null} (or omitted in JSON)
+         * means {@code true} — the pre-existing behavior, preserved for any
+         * caller that does not send the field.
+         */
+        Boolean active
 ) {}

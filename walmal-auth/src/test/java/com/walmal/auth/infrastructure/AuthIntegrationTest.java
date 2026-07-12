@@ -236,7 +236,7 @@ class AuthIntegrationTest {
     void should_updateRole_when_adminChangesUserRole() {
         String u = UUID.randomUUID().toString().substring(0, 8);
         UserProfileResponse created = authService.createUser(
-                new CreateUserRequest("u_" + u, u + "@test.com", "pass1234", "STAFF"), "admin");
+                new CreateUserRequest("u_" + u, u + "@test.com", "pass1234", "STAFF", null), "admin");
 
         UserProfileResponse updated = authService.updateUser(
                 created.id(), new UpdateUserRequest("CASHIER", null), "admin");
@@ -250,7 +250,7 @@ class AuthIntegrationTest {
     void should_deactivateUser_when_adminSetsActiveFalse() {
         String u = UUID.randomUUID().toString().substring(0, 8);
         UserProfileResponse created = authService.createUser(
-                new CreateUserRequest("u_" + u, u + "@test.com", "pass1234", "STAFF"), "admin");
+                new CreateUserRequest("u_" + u, u + "@test.com", "pass1234", "STAFF", null), "admin");
 
         UserProfileResponse updated = authService.updateUser(
                 created.id(), new UpdateUserRequest(null, false), "admin");
@@ -264,7 +264,7 @@ class AuthIntegrationTest {
     void should_writeAuditEntryWithCorrectValues_when_userRoleUpdated() {
         String u = UUID.randomUUID().toString().substring(0, 8);
         UserProfileResponse created = authService.createUser(
-                new CreateUserRequest("u_" + u, u + "@test.com", "pass1234", "STAFF"), "admin");
+                new CreateUserRequest("u_" + u, u + "@test.com", "pass1234", "STAFF", null), "admin");
         auditService.clear();
 
         authService.updateUser(created.id(), new UpdateUserRequest("CASHIER", null), "admin");
@@ -336,7 +336,7 @@ class AuthIntegrationTest {
     void should_acceptWarehouseManagerRole_when_createUserRequestSubmitted() {
         String u = UUID.randomUUID().toString().substring(0, 8);
         UserProfileResponse created = authService.createUser(
-                new CreateUserRequest("wm_" + u, u + "@test.com", "pass1234", "WAREHOUSE_MANAGER"), "admin");
+                new CreateUserRequest("wm_" + u, u + "@test.com", "pass1234", "WAREHOUSE_MANAGER", null), "admin");
 
         assertThat(created.role()).isEqualTo("WAREHOUSE_MANAGER");
     }
@@ -346,7 +346,7 @@ class AuthIntegrationTest {
     void should_acceptPosOperatorRole_when_createUserRequestSubmitted() {
         String u = UUID.randomUUID().toString().substring(0, 8);
         UserProfileResponse created = authService.createUser(
-                new CreateUserRequest("pos_" + u, u + "@test.com", "pass1234", "POS_OPERATOR"), "admin");
+                new CreateUserRequest("pos_" + u, u + "@test.com", "pass1234", "POS_OPERATOR", null), "admin");
 
         assertThat(created.role()).isEqualTo("POS_OPERATOR");
     }

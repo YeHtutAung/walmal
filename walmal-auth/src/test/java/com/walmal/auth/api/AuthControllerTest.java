@@ -207,7 +207,7 @@ class AuthControllerTest {
                         .with(authentication(buildAuth(adminPrincipal)))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "STAFF"))))
+                                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "STAFF", null))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.username").value("staff1"))
                 .andExpect(jsonPath("$.role").value("STAFF"));
@@ -222,7 +222,7 @@ class AuthControllerTest {
                         .with(authentication(buildAuth(customerPrincipal)))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "STAFF"))))
+                                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "STAFF", null))))
                 .andExpect(status().isForbidden());
     }
 
@@ -232,7 +232,7 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/v1/auth/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "STAFF"))))
+                                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "STAFF", null))))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -248,7 +248,7 @@ class AuthControllerTest {
                         .with(authentication(buildAuth(adminPrincipal)))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "STAFF"))))
+                                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "STAFF", null))))
                 .andExpect(status().isConflict());
     }
 
@@ -264,7 +264,7 @@ class AuthControllerTest {
                         .with(authentication(buildAuth(adminPrincipal)))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "SUPERADMIN"))))
+                                new CreateUserRequest("staff1", "staff1@walmal.com", "password123", "SUPERADMIN", null))))
                 .andExpect(status().isBadRequest());
     }
 
