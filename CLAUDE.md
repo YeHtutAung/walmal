@@ -233,6 +233,9 @@ endpoint, contract, config, or workflow MUST update the affected
 `docs/kb/SYSTEM.md` in the walmal repo — in the same work session;
 cross-repo commit atomicity is not required.
 
+If a change alters a fact claimed in `README.md`, update the README in the
+same commit (README numbers mirror `docs/kb/` — the KB copy is canonical).
+
 **Review check:** every code review must answer: "Does this change require a
 KB update, and was it made?" Refactors and test-only changes that alter no
 documented fact need none.
