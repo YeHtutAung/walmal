@@ -46,6 +46,29 @@ cd C:/YHA/006_Claude_Workspace/walmal
 ./mvnw -pl walmal-app -am -DskipTests clean package
 ```
 
+## Seed Product Images (test data)
+
+V9 seeds 5 demo products (`10000000-0000-0000-0000-000000000001` … `0005`)
+with zero `product_images` rows, so `primaryImageUrl` is null until images
+are uploaded — the storefront/admin show "No image" placeholders otherwise.
+
+`scripts/seed-product-images.ps1` fixes this: logs in as `admin_test`, and
+for each of the 5 product IDs uploads the matching PNG from
+`scripts/seed-images/` via `POST /api/v1/product/{id}/images`
+(`isPrimary=true` set on upload — the endpoint does not auto-primary the
+first image). Idempotent: skips a product if it already has a **primary**
+image (a stray non-primary image, e.g. left behind by the admin E2E
+product-CRUD spec, does not block seeding). Re-run it after a
+postgres/minio volume wipe (`docker compose down -v`), or any time the 5
+demo products come back imageless:
+
+```powershell
+pwsh -File scripts/seed-product-images.ps1
+```
+
+Uploaded objects land in the MinIO bucket `product-images`
+(`http://localhost:9000/product-images/...`).
+
 ## E2E Tests (walmal-store Playwright)
 
 E2E tests live in `../walmal-store/tests/e2e/`. See `../walmal-store/docs/kb/testing.md` for the Playwright setup. The backend must be running with the test profile and the current JAR.
