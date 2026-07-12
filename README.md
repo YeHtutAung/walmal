@@ -110,6 +110,12 @@ front of RabbitMQ — never a direct cross-module method call for async work.
   independent layer of per-route limits (login, register, refresh,
   payment-intent).
 
+- **Audited against a 45-item frontend security checklist.** The storefront
+  passes all 45 items — token storage, security headers, RBAC, Stripe
+  handling — tracked in `walmal-store/tests/security/FRONTEND_CHECKLIST.md`
+  (45/45 PASS as of 2026-07-10), backed by a ZAP scan with zero critical or
+  high automated alerts.
+
 - **Stripe test-mode payments, not a mocked gateway.** Checkout uses
   Stripe's CardElement and `confirmCardPayment` against real `sk_test_`
   keys — exercised by the Playwright suite with real Stripe test cards,
