@@ -128,7 +128,7 @@ front of RabbitMQ — never a direct cross-module method call for async work.
   during review rather than shipped. See `docs/adr/`.
 
 - **Both frontends tested end-to-end against the real backend.** No mocked
-  API layer: Playwright drives real Postgres, RabbitMQ, and Stripe test
+  API layer: Playwright runs against real Postgres, RabbitMQ, and Stripe test
   keys — 96 tests in the storefront (32 unique specs across chromium,
   firefox, and webkit) plus 21 in the admin, all passing.
 
