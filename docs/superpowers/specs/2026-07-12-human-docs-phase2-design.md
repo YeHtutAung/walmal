@@ -42,7 +42,8 @@ skimming human.
   SKIP LOCKED relay, broker-outage recovery drill); guest email notifications;
   JWT auth with rotating single-use refresh tokens (httpOnly cookie on the
   storefront); per-route rate limiting; cross-repo E2E coverage (96 Playwright
-  tests × 3 browsers in store + 21 in admin, all against the real backend);
+  tests across chromium/firefox/webkit in store + 21 in admin, all against
+  the real backend — 96 is the cross-browser total, 32 unique × 3);
   k6 load suite with passing thresholds; frontend security checklist 45/45.
 - Module table (module → responsibility, one line each).
 - **Quickstart**: docker compose services + test-profile JAR + seeded test
@@ -80,9 +81,9 @@ skimming human.
   consistent 1440×900 viewport against the real seeded backend.
 - Store screenshots use the :3001 test-env setup (real Stripe test keys — the
   :3000 dev server has placeholders that break checkout rendering).
-- Committed as PNG under `docs/images/` in each frontend repo (hub README is
-  diagram-only unless a system screenshot earns its place). Relative image
-  paths so GitHub renders them.
+- Committed as PNG under `docs/images/` in each frontend repo. The hub README
+  is diagram-only — no screenshots (decided; not an open question during
+  implementation). Relative image paths so GitHub renders them.
 - Port discipline: backend :8080 is shared — store and admin capture sessions
   run sequentially, never in parallel.
 
