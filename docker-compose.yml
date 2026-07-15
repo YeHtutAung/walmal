@@ -78,6 +78,10 @@ services:
       start_period: 5s
 
   app:
+    # Opt-in only: `docker compose up` starts just the backing services, so it
+    # never races the locally-built JAR for :8080. Run the containerised backend
+    # with `docker compose --profile full up -d --wait`.
+    profiles: ["full"]
     build: .
     container_name: walmal-app
     ports:

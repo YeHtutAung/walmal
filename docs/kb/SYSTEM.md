@@ -19,7 +19,14 @@
 | rabbitmq 3-management | 5672 AMQP, 15672 mgmt UI | message broker |
 | minio | 9000 API, 9001 console | S3-compatible file storage |
 | mailhog | 1025 SMTP, 8025 UI | dev email sink |
-| app (Spring Boot) | 8080 | built image; dev/E2E use the JAR directly instead |
+| app (Spring Boot) | 8080 | built image; **`profiles: ["full"]` — NOT started by a bare `docker compose up`**. Dev/E2E use the JAR directly instead; run the container with `docker compose --profile full up -d --wait`. |
+
+`docker compose up -d --wait` starts the five backing services only. `app` is
+profile-gated on purpose: before that, a bare `up` also built and started the
+backend on 8080, so the quickstart's `java -jar` step then failed on a bound
+port while `/actuator/health` still answered UP *from the container* — a green
+check masking the failure. Both E2E configs had independently worked around it
+by naming the five services explicitly; they no longer need to.
 
 ## Auth Contract
 
