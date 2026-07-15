@@ -101,7 +101,7 @@ https://github.com/YeHtutAung/walmal/blob/main/docs/adr/ADR-9-api-gateway-layer.
 https://github.com/YeHtutAung/walmal/blob/main/docs/DEPLOYMENT.md
 https://github.com/YeHtutAung/walmal/blob/main/docs/DR_PLAN.md
 https://github.com/YeHtutAung/walmal/blob/main/walmal-order/src/main/java/com/walmal/order/api/OrderController.java
-https://github.com/YeHtutAung/walmal/blob/main/walmal-app/src/main/resources/db/migration
+https://github.com/YeHtutAung/walmal/tree/main/walmal-app/src/main/resources/db/migration
 https://github.com/YeHtutAung/walmal-store/blob/main/README.md
 https://github.com/YeHtutAung/walmal-store/blob/main/docs/kb/architecture.md
 https://github.com/YeHtutAung/walmal-store/blob/main/docs/kb/conventions.md
@@ -129,6 +129,11 @@ Expected: **every line `OK   200`**, zero `FAIL` lines.
 
 Print every line rather than a count — the failing URL is the only thing worth
 knowing here, and a count cannot tell you which one broke.
+
+**Use `/tree/` not `/blob/` for directory links.** GitHub 301-redirects
+`/blob/` on a directory; it passes only because `-L` follows the redirect.
+Verified 2026-07-15: all 31 URLs return a direct 200, no redirect needed —
+so a `FAIL` here is a genuine break, never a redirect artifact.
 
 If any FAIL: the file moved or the branch is wrong. Fix the URL, or drop the
 link and adjust the page that would have used it. **Do not write a page around
@@ -569,14 +574,25 @@ are the likeliest source of a 404.
 
 ```bash
 SCRATCH="C:/Users/yehtu/AppData/Local/Temp/claude/C--YHA-006-Claude-Workspace-walmal/d0812832-d92d-4e10-aef2-f000b681449c/scratchpad"
-grep -oE 'https://github\.com/[^ )"]+' "$SCRATCH/pages.txt" | sed 's/[.,]$//' | sort -u > "$SCRATCH/live-links.txt"
+# Extract EVERY http(s) URL — not just github.com. See the auto-linkify note below.
+grep -oE 'https?://[^ )"]+' "$SCRATCH/pages.txt" | sed 's/[.,]$//' | sort -u > "$SCRATCH/live-links.txt"
 while read -r u; do
-  code=$(curl -s -o /dev/null -w "%{http_code}" -L "$u")
+  code=$(curl -s -o /dev/null -w "%{http_code}" "$u")
   [ "$code" = "200" ] && echo "OK   $code $u" || echo "FAIL $code $u"
 done < "$SCRATCH/live-links.txt"
 ```
 
 Expected: every line `OK   200`, zero `FAIL`.
+
+**Extract every URL, not only `github.com` ones.** Notion **auto-linkifies bare
+filenames**: a plain-text `gotchas.md` in a heading silently became
+`[gotchas.md](http://gotchas.md)` — a fabricated, broken link the author never
+wrote. A github-only grep does not catch it. Confirmed live on page 2, found
+and fixed 2026-07-15.
+
+Any non-`github.com`, non-`app.notion.com` URL in the output is almost
+certainly an auto-linkify artifact: fix it by rewording so no bare `*.md`
+filename appears in a heading or as standalone text.
 
 - [ ] **Step 2: Audit for the no-facts rule**
 
