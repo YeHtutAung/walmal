@@ -9,7 +9,7 @@
 | `walmal-auth` | User accounts, JWT issuance/validation, roles, refresh-token lifecycle |
 | `walmal-product` | Product catalogue, categories, variants, images |
 | `walmal-inventory` | Stock levels, reservations, locations, outbox-driven reservation events |
-| `walmal-order` | Order lifecycle (PENDING → CONFIRMED → SHIPPED → DELIVERED / CANCELLED); guest order support |
+| `walmal-order` | Order lifecycle (PENDING → CONFIRMED → FULFILLED / CANCELLED — see `OrderStatus`); guest order support |
 | `walmal-pos` | Point-of-sale sales, offline-sync conflict resolution |
 | `walmal-warehouse` | Fulfillments (`warehouse_fulfillments`/`warehouse_fulfillment_lines`), picking/packing/shipping workflow |
 | `walmal-notification` | Email notifications via `NotificationChannel`; `notification_log` table; guest-recipient support |

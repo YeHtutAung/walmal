@@ -42,8 +42,10 @@ graph TB
     Store -->|"REST /api/v1"| Auth
     Store -->|"REST /api/v1"| Product
     Store -->|"REST /api/v1"| Order
+    Store -->|"REST /api/v1"| Inventory
     Store -.->|"confirmCardPayment"| Stripe
     Admin -->|"REST /api/v1"| Auth
+    Admin -->|"REST /api/v1"| Product
     Admin -->|"REST /api/v1"| Inventory
     Admin -->|"REST /api/v1"| Order
     Admin -->|"REST /api/v1"| Warehouse
@@ -53,7 +55,7 @@ graph TB
     Inventory -->|"publish"| Outbox
     Outbox -->|"relay 1s poll"| Rabbit
     Rabbit -->|"order.created"| Warehouse
-    Rabbit -->|"reservation.released"| Order
+    Rabbit -->|"inventory.reservation.released"| Order
     Rabbit -->|"order/shipment events"| Notification
 
     Auth --> Postgres
@@ -144,7 +146,7 @@ front of RabbitMQ — never a direct cross-module method call for async work.
 | `walmal-auth` | User accounts, JWT issuance/validation, roles, refresh-token lifecycle |
 | `walmal-product` | Product catalogue, categories, variants, images |
 | `walmal-inventory` | Stock levels, reservations, locations, outbox-driven reservation events |
-| `walmal-order` | Order lifecycle (PENDING → CONFIRMED → SHIPPED → DELIVERED / CANCELLED); guest order support |
+| `walmal-order` | Order lifecycle (PENDING → CONFIRMED → FULFILLED / CANCELLED); guest order support |
 | `walmal-pos` | Point-of-sale sales, offline-sync conflict resolution |
 | `walmal-warehouse` | Fulfillments, picking/packing/shipping workflow |
 | `walmal-notification` | Email notifications, guest-recipient support |
