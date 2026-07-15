@@ -200,3 +200,4 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 
 - `docs/adr/` — architecture decision records: [ADR-2 Authentication Module](docs/adr/ADR-2-auth-module.md), [ADR-3 Product Module](docs/adr/ADR-3-product-module.md), [ADR-4 Inventory Module](docs/adr/ADR-4-inventory-module.md), [ADR-5 Order Module](docs/adr/ADR-5-order-module-architecture.md), [ADR-6 POS Module](docs/adr/ADR-6-pos-module-architecture.md), [ADR-9 API Gateway Layer](docs/adr/ADR-9-api-gateway-layer.md)
 - `docs/kb/` — agent-facing knowledge base (also the canonical source for every number in this README)
+- [Engineering onboarding (Notion)](https://app.notion.com/p/39ebded4025781119a34e141510fe72a) — start here if you're new: machine setup, an architecture reading order, and an annotated first PR. Links back to `docs/kb/` for every fact rather than restating them, so it can't drift.
