@@ -69,7 +69,7 @@ The admin "global search" feature is served by **three per-module search endpoin
 
 Performance note: both hand-written queries defeat indexes by construction (per-row UUID-to-string cast, leading `%` wildcard). This is an accepted sequential-scan tradeoff at admin search volumes — the same MVP tradeoff as product search's ILIKE.
 
-## Flyway Migration Map (V1–V15)
+## Flyway Migration Map (V1–V17)
 
 | Version | Description |
 |---------|-------------|
@@ -88,3 +88,5 @@ Performance note: both hand-written queries defeat indexes by construction (per-
 | V13 | order — add guest email field |
 | V14 | notification — guest recipients (`recipient_email` nullable, `recipient_id` nullable); `warehouse_fulfillments.user_id` nullable |
 | V15 | common — create `outbox_events` table |
+| V16 | pos — add `local_id` idempotency column to `pos_sync_queue` |
+| V17 | product — reseed dev catalog in place as "Walmal Sport" (same UUIDs/prices; 4-category taxonomy; 5 renamed + 10 new products, 15 total) — see `docs/kb/testing.md` "Seed Catalog" |

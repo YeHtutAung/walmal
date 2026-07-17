@@ -137,6 +137,41 @@ Endpoints intended for consumption by `walmal-admin` (or other non-walmal client
 - CORS: includes `http://localhost:3001` (store E2E) and `:5173`–`:5177` (admin dev/E2E; admin E2E pins `:5174`).
 - Profile marker: `info.walmal.profile: test` visible at public `/actuator/info` (used by `global-setup.ts` drift check).
 
+## Seed Catalog ("Walmal Sport")
+
+`walmal-app/src/main/resources/db/migration/V17__reseed_sports_catalog.sql`
+rebrands the dev/E2E catalog in place as a sports store. Same UUIDs and
+prices as before (all three repos' E2E/k6 suites depend on them) —
+only names, slugs, descriptions, brands, SKUs, and attributes change, plus
+10 new products.
+
+- 4 active root categories: Jerseys (`jerseys`,
+  `c0000000-0000-0000-0000-000000000021`), Boots (`boots`,
+  `c0000000-0000-0000-0000-000000000011`), Teamwear (`teamwear`,
+  `c0000000-0000-0000-0000-000000000022`), Equipment (`equipment`,
+  `c0000000-0000-0000-0000-000000000012`). The old parents Electronics
+  (`c0000000-0000-0000-0000-000000000001`) and Apparel
+  (`c0000000-0000-0000-0000-000000000002`) are deactivated but still
+  returned by `GET /product/categories` with `active:false` — the tree
+  endpoint does not filter on `is_active`.
+- 15 seeded products total (`10000000-0000-0000-0000-000000000001` …
+  `0015`). Test-critical variants keep their UUIDs and prices:
+  `20000000-0000-0000-0000-000000000001` = SKU `WP-VELO-LE-UK9` "Velocity
+  Elite LE UK 9 Chaos Red" $1199.99 (product: Velocity Elite FG Boot);
+  `20000000-0000-0000-0000-000000000002` = SKU `WP-VELO-LE-UK9G`
+  "Velocity Elite LE UK 9 Gold Limited" $1419.99.
+- Reseed caveat: the category tree is Redis-cached
+  (`product:category:tree`, 30-min TTL) and Flyway's raw SQL never evicts
+  it, so a stale tree can serve for up to 30 minutes after migrating —
+  flush Redis or wait out the TTL before relying on fresh category data.
+- Seed images: `walmal/scripts/generate-seed-images.py` generates 15 PNGs
+  into `walmal/scripts/seed-images/`; `walmal/scripts/seed-product-images.ps1`
+  uploads them (idempotent — skips products with an existing primary
+  image). Re-run both after a volume wipe.
+- The V9 `order_items` snapshot text ("Galaxy S24 Ultra 256GB Black") is
+  intentionally untouched by V17 — it's a historical order-line snapshot,
+  not live catalog data.
+
 ## Test Credentials
 
 Seed accounts are defined in `walmal-app/src/main/resources/db/migration/V12__auth_add_test_accounts.sql`. That file is the source of truth for usernames, emails, and roles. Do not store passwords here.

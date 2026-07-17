@@ -46,21 +46,61 @@ cd C:/YHA/006_Claude_Workspace/walmal
 ./mvnw -pl walmal-app -am -DskipTests clean package
 ```
 
-## Seed Product Images (test data)
+## Seed Catalog (V9 + V17 — "Walmal Sport")
 
-V9 seeds 5 demo products (`10000000-0000-0000-0000-000000000001` … `0005`)
-with zero `product_images` rows, so `primaryImageUrl` is null until images
+`V9__seed_dev_data.sql` originally seeded a generic electronics/apparel demo
+catalog. `V17__reseed_sports_catalog.sql` rebrands it in place as **Walmal
+Sport**: the 5 original products/variants keep their UUIDs and prices
+(E2E + k6 depend on them) but get sports names/SKUs, and 10 new sports
+products are added — **15 seeded products total**
+(`10000000-0000-0000-0000-000000000001` … `0015`).
+
+Categories flatten to 4 active root categories: Jerseys (`jerseys`,
+`c0000000-0000-0000-0000-000000000021`), Boots (`boots`,
+`c0000000-0000-0000-0000-000000000011`), Teamwear (`teamwear`,
+`c0000000-0000-0000-0000-000000000022`), Equipment (`equipment`,
+`c0000000-0000-0000-0000-000000000012`). The old parents Electronics
+(`c0000000-0000-0000-0000-000000000001`) and Apparel
+(`c0000000-0000-0000-0000-000000000002`) are set `is_active=FALSE` but
+still come back from `GET /product/categories` with `active:false` — the
+tree endpoint does not filter on `is_active`.
+
+Test-critical variants keep their UUIDs and prices:
+`20000000-0000-0000-0000-000000000001` = SKU `WP-VELO-LE-UK9` "Velocity
+Elite LE UK 9 Chaos Red" $1199.99 (product: Velocity Elite FG Boot);
+`20000000-0000-0000-0000-000000000002` = SKU `WP-VELO-LE-UK9G` "Velocity
+Elite LE UK 9 Gold Limited" $1419.99. The V9 `order_items` snapshot text
+("Galaxy S24 Ultra 256GB Black") is intentionally left untouched by V17 —
+it's a historical order-line snapshot, not live catalog data.
+
+**Redis caveat:** the category tree is cached at `product:category:tree`
+(30-minute TTL, see `ProductSearchServiceImpl`). Flyway migrations write
+directly to Postgres and never evict it, so after running V17 (or any raw
+SQL reseed) the tree can keep serving stale category data for up to 30
+minutes — flush Redis (`docker exec walmal-redis redis-cli FLUSHALL`) or
+wait out the TTL after migrating.
+
+V17 also deletes the `product_images` rows for the 5 renamed products
+(their old electronics/apparel art no longer matches), so all 15 products
+have zero images post-migration and `primaryImageUrl` is null until images
 are uploaded — the storefront/admin show "No image" placeholders otherwise.
 
-`scripts/seed-product-images.ps1` fixes this: logs in as `admin_test`, and
-for each of the 5 product IDs uploads the matching PNG from
-`scripts/seed-images/` via `POST /api/v1/product/{id}/images`
-(`isPrimary=true` set on upload — the endpoint does not auto-primary the
-first image). Idempotent: skips a product if it already has a **primary**
-image (a stray non-primary image, e.g. left behind by the admin E2E
-product-CRUD spec, does not block seeding). Re-run it after a
-postgres/minio volume wipe (`docker compose down -v`), or any time the 5
-demo products come back imageless:
+`scripts/generate-seed-images.py` (PIL; run via `python`, not the
+PowerShell python shim, which is a broken Cygwin stub on this machine)
+generates 15 flat-illustration PNGs into `scripts/seed-images/`, one per
+product. `scripts/seed-product-images.ps1` then logs in as `admin_test`
+and for each of the 15 product IDs uploads the matching PNG via
+`POST /api/v1/product/{id}/images` (`isPrimary=true` set on upload — the
+endpoint does not auto-primary the first image). Idempotent: skips a
+product if it already has a **primary** image (a stray non-primary image,
+e.g. left behind by the admin E2E product-CRUD spec, does not block
+seeding). Re-run both after a postgres/minio volume wipe
+(`docker compose down -v`), or any time the 15 demo products come back
+imageless:
+
+```bash
+python scripts/generate-seed-images.py
+```
 
 ```powershell
 pwsh -File scripts/seed-product-images.ps1
