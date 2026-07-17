@@ -7,8 +7,8 @@
  *   3. badVariant         — POST /orders with non-existent variantId (expects 4xx)
  *
  * NOTE: Each order consumes real inventory. The seeded stock is:
- *   TEE_M_WHT  200 units   TEE_L_BLK  180 units  (safe for load testing)
- *   JEAN_32    120 units   JEAN_34     90 units
+ *   FTEE_M_WHT  200 units   FTEE_L_BLK  180 units  (safe for load testing)
+ *   DNAP_32     120 units   DNAP_34      90 units
  * Quantity=1 per order to avoid depleting stock.
  * If stock runs out the backend returns 409; re-stock manually or re-seed.
  *
@@ -26,10 +26,10 @@ const orderErrors   = new Rate('checkout_order_errors')
 
 // Low-cost items with high stock — safe to order repeatedly
 const LOW_STOCK_RISK_VARIANTS = [
-  VARIANTS.TEE_M_WHT,
-  VARIANTS.TEE_L_BLK,
-  VARIANTS.JEAN_32_IND,
-  VARIANTS.JEAN_34_BLK,
+  VARIANTS.FTEE_M_WHT,
+  VARIANTS.FTEE_L_BLK,
+  VARIANTS.DNAP_32_NVY,
+  VARIANTS.DNAP_34_BLK,
 ]
 
 const SHIPPING_ADDRESSES = [

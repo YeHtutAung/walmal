@@ -100,10 +100,10 @@ The scripts rely on stable UUIDs from the dev seed migrations:
 | Main Warehouse location | `a0000000-...-0001` | V4 migration |
 | Buffer location | `a0000000-...-0002` | V4 migration |
 | POS Terminal | `b0000000-...-0001` | V6 migration |
-| Galaxy S24 Ultra 256GB variant | `20000000-...-0001` | V9 migration, 50 stock |
-| Classic Tee M White variant | `20000000-...-0006` | V9 migration, 200 stock |
+| Velocity Elite LE UK 9 Chaos Red variant | `20000000-...-0001` | V9 migration, renamed by V17, 50 stock |
+| Harbour City FC Fan Tee M White variant | `20000000-...-0006` | V9 migration, renamed by V17, 200 stock |
 
-The checkout and POS tests order only high-stock items (T-shirts, jeans) to avoid depleting
+The checkout and POS tests order only high-stock items (fan tees, training pants) to avoid depleting
 inventory during a test run. If you see 409 responses, re-seed with:
 ```sql
 UPDATE inventory_stock SET available_quantity = 200 WHERE variant_id = '20000000-0000-0000-0000-000000000006';

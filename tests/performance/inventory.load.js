@@ -115,7 +115,7 @@ export default function (data) {
     case 7: {
       // Transfer 1 unit from Main Warehouse to Buffer
       const body = {
-        variantId:      VARIANTS.S24_256_BLK, // always has stock seeded in both locations
+        variantId:      VARIANTS.VELO_UK9_RED, // always has stock seeded in both locations
         fromLocationId: LOCATION_ID,
         toLocationId:   BUFFER_LOC_ID,
         quantity:       1,

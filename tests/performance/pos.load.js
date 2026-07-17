@@ -26,10 +26,10 @@ const saleErrors       = new Rate('pos_sale_errors')
 
 // Items safe for repeated POS sales (high stock)
 const POS_VARIANTS = [
-  VARIANTS.TEE_M_WHT,
-  VARIANTS.TEE_L_BLK,
-  VARIANTS.JEAN_32_IND,
-  VARIANTS.JEAN_34_BLK,
+  VARIANTS.FTEE_M_WHT,
+  VARIANTS.FTEE_L_BLK,
+  VARIANTS.DNAP_32_NVY,
+  VARIANTS.DNAP_34_BLK,
 ]
 
 export const options = {
@@ -54,7 +54,7 @@ export function setup() {
   const idempotencyKey = `setup-${Date.now()}`
   const body = {
     terminalId: TERMINAL_ID,
-    items:      [{ variantId: VARIANTS.TEE_M_WHT, locationId: LOCATION_ID, quantity: 1 }],
+    items:      [{ variantId: VARIANTS.FTEE_M_WHT, locationId: LOCATION_ID, quantity: 1 }],
     currency:   'USD',
   }
   const res = http.post(

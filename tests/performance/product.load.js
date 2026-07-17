@@ -20,7 +20,7 @@ const searchDuration   = new Trend('product_search_duration', true)
 const categoryDuration = new Trend('product_category_duration', true)
 const detailDuration   = new Trend('product_detail_duration', true)
 
-const SEARCH_TERMS = ['galaxy', 'iphone', 'macbook', 'tee', 'jeans', 'samsung', 'apple', '']
+const SEARCH_TERMS = ['velocity', 'jersey', 'boot', 'harbour', 'ball', 'polo', 'walmal', '']
 const PRODUCT_IDS  = Object.values(PRODUCTS)
 
 export const options = {
