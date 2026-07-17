@@ -33,6 +33,9 @@ public class PosSyncQueue {
     @Column(name = "sale_data", nullable = false, columnDefinition = "jsonb")
     private String saleData;   // raw JSON payload — deserialized to OfflineSalePayload by processor
 
+    @Column(name = "local_id")
+    private UUID localId;   // device-generated idempotency key (also inside saleData); nullable for legacy rows
+
     @Column(name = "submitted_at", nullable = false)
     private Instant submittedAt;
 
@@ -51,9 +54,10 @@ public class PosSyncQueue {
 
     protected PosSyncQueue() {}
 
-    public PosSyncQueue(PosTerminal terminal, String saleData) {
+    public PosSyncQueue(PosTerminal terminal, String saleData, UUID localId) {
         this.terminal = terminal;
         this.saleData = saleData;
+        this.localId = localId;
         this.status = QueueStatus.PENDING;
         this.submittedAt = Instant.now();
     }
@@ -93,6 +97,7 @@ public class PosSyncQueue {
     public UUID getId() { return id; }
     public PosTerminal getTerminal() { return terminal; }
     public String getSaleData() { return saleData; }
+    public UUID getLocalId() { return localId; }
     public Instant getSubmittedAt() { return submittedAt; }
     public Instant getProcessedAt() { return processedAt; }
     public QueueStatus getStatus() { return status; }

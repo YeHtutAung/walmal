@@ -82,7 +82,7 @@ class PosSyncItemProcessorTest {
                 "Test Product", "SKU-001");
         payload = new OfflineSalePayload(UUID.randomUUID(), List.of(lineItem), "SGD", Instant.now());
 
-        queueRow = new PosSyncQueue(terminal, "{}");
+        queueRow = new PosSyncQueue(terminal, "{}", payload.localId());
 
         when(posSaleRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(posSaleItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));

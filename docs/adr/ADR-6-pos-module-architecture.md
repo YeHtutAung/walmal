@@ -198,6 +198,19 @@ this UPDATE.
 and `failure_reason` populated. This satisfies the audit trail requirement and allows
 operator resubmission or manual resolution.
 
+**Batch idempotency (implemented 2026-07-17):** offline queues are retry-prone —
+a terminal that loses connectivity mid-response resubmits the whole batch. The
+device-generated `localId` is now a first-class column on `pos_sync_queue`
+(migration V16), and `submitOfflineSync()` skips any payload whose `localId`
+this terminal has already PROCESSED (counting it as an idempotent `synced`, not
+reprocessing it — so stock is never double-decremented and a conflict is never
+re-resolved). The partial unique index `ux_pos_sync_processed_local_id` on
+`(terminal_id, local_id) WHERE status = 'PROCESSED'` enforces at-most-once
+processing at the DB layer as a concurrency backstop. This closes the gap
+between this ADR's "maximally idempotent" intent and the earlier
+implementation, which echoed `localId` into logs only and reprocessed every
+resubmitted payload.
+
 The known MVP limitation (large batches risk HTTP timeout) is acknowledged. No background
 job is introduced for MVP. The HTTP timeout risk is mitigated by:
 - Setting a generous read timeout on the sync endpoint (configurable,

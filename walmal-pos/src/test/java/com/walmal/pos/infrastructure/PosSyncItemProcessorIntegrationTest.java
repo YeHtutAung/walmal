@@ -63,7 +63,7 @@ class PosSyncItemProcessorIntegrationTest {
         terminal = posTerminalRepository.save(terminal);
 
         // Create a queue row
-        PosSyncQueue queueRow = new PosSyncQueue(terminal, "{\"localId\":\"test\"}");
+        PosSyncQueue queueRow = new PosSyncQueue(terminal, "{\"localId\":\"test\"}", UUID.randomUUID());
         queueRow = posSyncQueueRepository.save(queueRow);
         UUID queueId = queueRow.getId();
 
@@ -90,7 +90,7 @@ class PosSyncItemProcessorIntegrationTest {
                 UUID.fromString("a0000000-0000-0000-0000-000000000001"));
         terminal = posTerminalRepository.save(terminal);
 
-        PosSyncQueue queueRow = new PosSyncQueue(terminal, "{\"localId\":\"test-fail\"}");
+        PosSyncQueue queueRow = new PosSyncQueue(terminal, "{\"localId\":\"test-fail\"}", UUID.randomUUID());
         queueRow = posSyncQueueRepository.save(queueRow);
         UUID queueId = queueRow.getId();
 
@@ -113,11 +113,11 @@ class PosSyncItemProcessorIntegrationTest {
         terminal = posTerminalRepository.save(terminal);
 
         // Two PENDING rows
-        posSyncQueueRepository.save(new PosSyncQueue(terminal, "{\"localId\":\"p1\"}"));
-        posSyncQueueRepository.save(new PosSyncQueue(terminal, "{\"localId\":\"p2\"}"));
+        posSyncQueueRepository.save(new PosSyncQueue(terminal, "{\"localId\":\"p1\"}", UUID.randomUUID()));
+        posSyncQueueRepository.save(new PosSyncQueue(terminal, "{\"localId\":\"p2\"}", UUID.randomUUID()));
 
         // One FAILED row
-        PosSyncQueue failedRow = new PosSyncQueue(terminal, "{\"localId\":\"f1\"}");
+        PosSyncQueue failedRow = new PosSyncQueue(terminal, "{\"localId\":\"f1\"}", UUID.randomUUID());
         failedRow.markFailed("test failure");
         posSyncQueueRepository.save(failedRow);
 

@@ -86,13 +86,30 @@ public class PosSyncServiceImpl implements PosSyncService {
         int failed = 0;
         List<SyncFailureDetail> failures = new ArrayList<>();
 
+        int duplicates = 0;
+
         for (OfflineSalePayload payload : offlineSales) {
+
+            // Idempotency guard (ADR-6): if this terminal already PROCESSED a
+            // payload with this localId, the batch is a resubmission. Skip it —
+            // do NOT re-queue or reprocess (that would double-decrement stock and
+            // re-resolve the conflict). A duplicate is already-synced, so it
+            // counts toward `synced` (idempotent success), not `failed`.
+            if (payload.localId() != null
+                    && posSyncQueueRepository.existsByTerminalIdAndLocalIdAndStatus(
+                            terminalId, payload.localId(), QueueStatus.PROCESSED)) {
+                log.info("Skipping duplicate offline sale localId={} for terminal={} (already PROCESSED)",
+                        payload.localId(), terminalId);
+                duplicates++;
+                synced++;
+                continue;
+            }
 
             // Phase 1: persist queue row — this always commits (operator visibility)
             PosSyncQueue queueRow;
             try {
                 String saleDataJson = objectMapper.writeValueAsString(payload);
-                queueRow = new PosSyncQueue(terminal, saleDataJson);
+                queueRow = new PosSyncQueue(terminal, saleDataJson, payload.localId());
                 queueRow = posSyncQueueRepository.save(queueRow);
             } catch (JsonProcessingException e) {
                 log.error("Failed to serialize offline payload localId={}: {}",
@@ -132,8 +149,8 @@ public class PosSyncServiceImpl implements PosSyncService {
             }
         }
 
-        log.info("Offline sync complete: terminalId={} submitted={} synced={} conflictResolved={} failed={}",
-                terminalId, offlineSales.size(), synced, conflictResolved, failed);
+        log.info("Offline sync complete: terminalId={} submitted={} synced={} (of which duplicates={}) conflictResolved={} failed={}",
+                terminalId, offlineSales.size(), synced, duplicates, conflictResolved, failed);
 
         return new SyncResultDto(offlineSales.size(), synced, conflictResolved, failed, failures);
     }

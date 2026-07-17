@@ -28,4 +28,13 @@ public interface PosSyncQueueRepository extends JpaRepository<PosSyncQueue, UUID
      * Used by {@code getSyncStatus()} for real-time operator dashboard counts.
      */
     long countByTerminalIdAndStatus(UUID terminalId, QueueStatus status);
+
+    /**
+     * Idempotency check for offline sync: has this terminal already PROCESSED a
+     * payload with the given device-generated {@code localId}? A resubmitted
+     * batch is detected here and skipped, so stock is never re-decremented
+     * (ADR-6 idempotency). Backed by the partial unique index
+     * {@code ux_pos_sync_processed_local_id}.
+     */
+    boolean existsByTerminalIdAndLocalIdAndStatus(UUID terminalId, UUID localId, QueueStatus status);
 }

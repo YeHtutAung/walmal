@@ -123,6 +123,46 @@ class PosSyncServiceImplTest {
     }
 
     @Test
+    @DisplayName("should_skipDuplicate_when_processedRowExistsForLocalId")
+    void should_skipDuplicate_when_processedRowExistsForLocalId() {
+        OfflineSalePayload dup = buildPayload();
+        when(posSyncQueueRepository.existsByTerminalIdAndLocalIdAndStatus(
+                terminalId, dup.localId(), QueueStatus.PROCESSED)).thenReturn(true);
+
+        SyncResultDto result = service.submitOfflineSync(terminalId, List.of(dup));
+
+        // Idempotent: an already-PROCESSED localId is reported synced, but NOT
+        // reprocessed (no stock re-decrement) and NOT re-queued.
+        assertThat(result.totalSubmitted()).isEqualTo(1);
+        assertThat(result.synced()).isEqualTo(1);
+        assertThat(result.conflictResolved()).isEqualTo(0);
+        assertThat(result.failed()).isEqualTo(0);
+        verify(posSyncItemProcessor, never()).processItem(any(), any(), any());
+        verify(posSyncQueueRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("should_processNewAndSkipDuplicate_inMixedBatch")
+    void should_processNewAndSkipDuplicate_inMixedBatch() {
+        OfflineSalePayload dup = buildPayload();
+        OfflineSalePayload fresh = buildPayload();
+        when(posSyncQueueRepository.existsByTerminalIdAndLocalIdAndStatus(
+                terminalId, dup.localId(), QueueStatus.PROCESSED)).thenReturn(true);
+        when(posSyncQueueRepository.existsByTerminalIdAndLocalIdAndStatus(
+                terminalId, fresh.localId(), QueueStatus.PROCESSED)).thenReturn(false);
+        when(posSyncItemProcessor.processItem(any(), eq(fresh), any()))
+                .thenReturn(new SyncItemResult(fresh.localId(), ConflictOutcome.NO_CONFLICT, true, null));
+
+        SyncResultDto result = service.submitOfflineSync(terminalId, List.of(dup, fresh));
+
+        assertThat(result.totalSubmitted()).isEqualTo(2);
+        assertThat(result.synced()).isEqualTo(2); // 1 already-synced dup + 1 freshly synced
+        assertThat(result.failed()).isEqualTo(0);
+        verify(posSyncItemProcessor, times(1)).processItem(any(), any(), any());
+        verify(posSyncQueueRepository, times(1)).save(any());
+    }
+
+    @Test
     @DisplayName("should_countFailures_when_processItemThrows")
     void should_countFailures_when_processItemThrows() {
         OfflineSalePayload payload = buildPayload();
