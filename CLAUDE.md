@@ -196,10 +196,16 @@ Specialized sub-agents in `.claude/agents/`.
 | `database-designer` | PostgreSQL schema design, Flyway migrations, table ownership |
 | `module-builder` | Feature module scaffolding and implementation |
 | `test-validator` | Test coverage, boundary validation, Definition of Done enforcement |
+| `pos-sync-specialist` | Offline POS sync and conflict-resolution design and review |
+| `security-auditor` | Security review of changes touching auth, payments, or user data |
 
 This table lists the agents that exist. Do not add a row without adding the
 file — a declared-but-absent agent turns its invocation rule into a step that
-silently never runs.
+silently never runs. (That exact failure already happened once: the last two
+rows were declared for months with no files behind them, so every
+auth/payment/user-data module shipped without the review the rule implied.
+The files exist now — written 2026-07-17. Keep the table and `.claude/agents/`
+in lockstep.)
 
 ### Agent Invocation Rule
 - Always start with `walmal-orchestrator` for any multi-step task
@@ -207,18 +213,10 @@ silently never runs.
   `backend-architect` → `database-designer` → `module-builder` → `test-validator`
 - Sequence for validation only:
   `test-validator` → `backend-architect` (if violations found)
-- POS sync work and security review have no dedicated agent — handle them
-  within the sequence above. See "Known gaps" below.
-
-### Known gaps
-`pos-sync-specialist` and `security-auditor` were previously declared here but
-never existed in `.claude/agents/`. The `security-auditor` entry carried a rule
-that it "runs after every module that touches auth, payments, or user data" —
-which nothing could satisfy, so every such module shipped without that review
-while the rule implied otherwise. Both entries are removed rather than left as
-unsatisfiable requirements. **Security review of auth/payment/user-data changes
-is currently a manual step with no agent behind it.** Writing these two agents
-is open work; until then, do not assume the gate exists.
+- `security-auditor` runs after every change that touches auth, payments, or
+  user data — after implementation, before the change is considered done
+- POS sync / conflict-resolution work involves `pos-sync-specialist` for
+  design and review, within the standard build sequence
 
 ---
 
