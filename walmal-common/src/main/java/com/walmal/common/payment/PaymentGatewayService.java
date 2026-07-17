@@ -18,12 +18,30 @@ import java.util.UUID;
 public interface PaymentGatewayService {
 
     /**
-     * Charges the customer's default payment method for the given order amount.
-     *
-     * @param orderId   the order UUID used as idempotency key with the gateway
-     * @param amount    total charge amount; must be positive
-     * @param currency  ISO-4217 currency code (e.g., "USD")
-     * @return {@link PaymentResult} with the gateway reference and outcome status
+     * Prefix marking a payment reference as an in-store POS terminal sale. Payment
+     * for these was captured at the terminal (cash / card reader), so it is
+     * terminal-authoritative and not verified against the web gateway — a real
+     * gateway impl treats a reference with this prefix as already-paid.
      */
-    PaymentResult charge(UUID orderId, BigDecimal amount, String currency);
+    String POS_TERMINAL_REFERENCE_PREFIX = "pos-terminal:";
+
+    /**
+     * Verifies that a payment the client already made covers this order, server-side.
+     *
+     * <p>The web checkout confirms the payment on the client (e.g. Stripe
+     * {@code confirmCardPayment}) and passes the resulting reference here; the
+     * backend must never trust that the client actually paid, or paid the right
+     * amount. A real implementation retrieves the payment by {@code paymentReference}
+     * from the provider and asserts it succeeded and its amount/currency match the
+     * server-computed order total before the order is confirmed.</p>
+     *
+     * @param orderId          the order being paid for
+     * @param paymentReference provider payment reference (e.g. a Stripe PaymentIntent
+     *                         id), or a {@link #POS_TERMINAL_REFERENCE_PREFIX} marker
+     *                         for terminal-authoritative POS sales; must be non-blank
+     * @param amount           server-computed order total to reconcile against
+     * @param currency         ISO-4217 currency code (e.g., "USD")
+     * @return {@link PaymentResult} with the verified reference and outcome status
+     */
+    PaymentResult verifyPayment(UUID orderId, String paymentReference, BigDecimal amount, String currency);
 }

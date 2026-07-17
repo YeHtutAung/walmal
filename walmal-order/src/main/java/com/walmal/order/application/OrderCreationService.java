@@ -41,18 +41,20 @@ public interface OrderCreationService {
      * @param items           one or more line items (variantId, locationId, quantity)
      * @param shippingAddress delivery address snapshot
      * @param currency        ISO-4217 currency code for the order total
+     * @param paymentReference provider reference for the client-confirmed payment,
+     *        verified server-side before the order is confirmed; must be non-blank
      * @return the new order's UUID
      * @throws com.walmal.common.exception.BusinessRuleException if any variant is inactive,
-     *         no price is set, or stock is insufficient
+     *         no price is set, stock is insufficient, or payment verification fails
      */
     UUID createOrder(UUID userId, List<OrderLineItem> items,
-                     ShippingAddress shippingAddress, String currency);
+                     ShippingAddress shippingAddress, String currency, String paymentReference);
 
     /**
      * Creates a guest order. {@code userId} is null; {@code guestEmail} identifies the buyer.
      */
     UUID createGuestOrder(String guestEmail, List<OrderLineItem> items,
-                          ShippingAddress shippingAddress, String currency);
+                          ShippingAddress shippingAddress, String currency, String paymentReference);
 
     /**
      * Cancels a PENDING order.

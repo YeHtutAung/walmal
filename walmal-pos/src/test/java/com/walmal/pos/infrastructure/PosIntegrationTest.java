@@ -306,12 +306,12 @@ class PosIntegrationTest {
             return new OrderCreationService() {
                 @Override
                 public UUID createOrder(UUID userId, List<OrderLineItem> items,
-                                        ShippingAddress shippingAddress, String currency) {
+                                        ShippingAddress shippingAddress, String currency, String paymentReference) {
                     return UUID.randomUUID();
                 }
                 @Override
                 public UUID createGuestOrder(String guestEmail, List<OrderLineItem> items,
-                                             ShippingAddress shippingAddress, String currency) {
+                                             ShippingAddress shippingAddress, String currency, String paymentReference) {
                     return UUID.randomUUID();
                 }
                 @Override
@@ -340,8 +340,8 @@ class PosIntegrationTest {
         @Bean
         @Primary
         PaymentGatewayService stubPaymentGatewayService() {
-            return (orderId, amount, currency) ->
-                    new PaymentResult(UUID.randomUUID().toString(), PaymentStatus.SUCCESS);
+            return (orderId, paymentReference, amount, currency) ->
+                    new PaymentResult(paymentReference, PaymentStatus.SUCCESS);
         }
     }
 }

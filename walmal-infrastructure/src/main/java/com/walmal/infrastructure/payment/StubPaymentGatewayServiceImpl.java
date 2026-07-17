@@ -34,7 +34,9 @@ import java.util.UUID;
 public class StubPaymentGatewayServiceImpl implements PaymentGatewayService {
 
     @Override
-    public PaymentResult charge(UUID orderId, BigDecimal amount, String currency) {
-        return new PaymentResult(UUID.randomUUID().toString(), PaymentStatus.SUCCESS);
+    public PaymentResult verifyPayment(UUID orderId, String paymentReference, BigDecimal amount, String currency) {
+        // Dev/test only: accept any reference as paid. Echo the reference so the
+        // order records the same id the client supplied.
+        return new PaymentResult(paymentReference, PaymentStatus.SUCCESS);
     }
 }

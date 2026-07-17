@@ -333,13 +333,13 @@ class OrderControllerTest {
                 UUID.randomUUID(), "customer1", "CUSTOMER");
         UUID newOrderId = UUID.randomUUID();
 
-        when(orderCreationService.createOrder(any(), any(), any(), any()))
+        when(orderCreationService.createOrder(any(), any(), any(), any(), any()))
                 .thenReturn(newOrderId);
 
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderLineItemRequest(UUID.randomUUID(), UUID.randomUUID(), 1)),
                 new ShippingAddressRequest("1 Main St", null, "City", "US", "12345"),
-                "USD", null);
+                "USD", null, "pi_test_123");
 
         mockMvc.perform(post("/api/v1/orders")
                         .with(authentication(buildAuth(customer)))
@@ -353,13 +353,13 @@ class OrderControllerTest {
     @DisplayName("should_return201_when_guestOrder_with_guestEmail")
     void should_return201_when_guestOrder_with_guestEmail() throws Exception {
         UUID newOrderId = UUID.randomUUID();
-        when(orderCreationService.createGuestOrder(any(), any(), any(), any()))
+        when(orderCreationService.createGuestOrder(any(), any(), any(), any(), any()))
                 .thenReturn(newOrderId);
 
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderLineItemRequest(UUID.randomUUID(), UUID.randomUUID(), 1)),
                 new ShippingAddressRequest("1 Main St", null, "City", "US", "12345"),
-                "USD", "guest@example.com");
+                "USD", "guest@example.com", "pi_test_123");
 
         mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -374,13 +374,13 @@ class OrderControllerTest {
         AuthenticatedPrincipal customer = new AuthenticatedPrincipal(
                 UUID.randomUUID(), "customer1", "CUSTOMER");
 
-        when(orderCreationService.createOrder(any(), any(), any(), any()))
+        when(orderCreationService.createOrder(any(), any(), any(), any(), any()))
                 .thenThrow(new BusinessRuleException("Variant is not active"));
 
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderLineItemRequest(UUID.randomUUID(), UUID.randomUUID(), 1)),
                 new ShippingAddressRequest("1 Main St", null, "City", "US", "12345"),
-                "USD", null);
+                "USD", null, "pi_test_123");
 
         mockMvc.perform(post("/api/v1/orders")
                         .with(authentication(buildAuth(customer)))

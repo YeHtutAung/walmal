@@ -107,7 +107,7 @@ class OrderIntegrationTest {
         UUID userId = UUID.randomUUID();
         List<OrderLineItem> items = List.of(new OrderLineItem(VARIANT_ID, LOCATION_ID, 2));
 
-        UUID orderId = orderCreationService.createOrder(userId, items, ADDRESS, "USD");
+        UUID orderId = orderCreationService.createOrder(userId, items, ADDRESS, "USD", "pi_test_integration");
 
         assertThat(orderId).isNotNull();
 
@@ -157,7 +157,7 @@ class OrderIntegrationTest {
         UUID userId = UUID.randomUUID();
         List<OrderLineItem> items = List.of(new OrderLineItem(VARIANT_ID, LOCATION_ID, 1));
 
-        UUID orderId = orderCreationService.createOrder(userId, items, ADDRESS, "USD");
+        UUID orderId = orderCreationService.createOrder(userId, items, ADDRESS, "USD", "pi_test_integration");
         // Order is now CONFIRMED due to stub payment always succeeding
 
         assertThatThrownBy(() -> orderCreationService.cancelOrder(orderId, userId))
@@ -344,8 +344,8 @@ class OrderIntegrationTest {
         @Bean
         @Primary
         PaymentGatewayService stubPaymentGatewayService() {
-            return (orderId, amount, currency) ->
-                    new PaymentResult(UUID.randomUUID().toString(), PaymentStatus.SUCCESS);
+            return (orderId, paymentReference, amount, currency) ->
+                    new PaymentResult(paymentReference, PaymentStatus.SUCCESS);
         }
     }
 }

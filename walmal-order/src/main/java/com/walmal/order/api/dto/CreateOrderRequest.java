@@ -16,5 +16,10 @@ public record CreateOrderRequest(
         @NotEmpty @Valid List<OrderLineItemRequest> items,
         @Valid ShippingAddressRequest shippingAddress,
         @NotBlank String currency,
-        @Email String guestEmail
+        @Email String guestEmail,
+        // Provider payment reference (e.g. the Stripe PaymentIntent id) for the
+        // payment the client already confirmed. Required: the backend verifies it
+        // server-side before confirming the order, so a request without it cannot
+        // produce a paid-for order.
+        @NotBlank String paymentReference
 ) {}

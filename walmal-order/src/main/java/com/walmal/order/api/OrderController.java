@@ -78,13 +78,13 @@ public class OrderController {
 
         UUID orderId;
         if (principal != null) {
-            orderId = orderCreationService.createOrder(principal.userId(), items, address, request.currency());
+            orderId = orderCreationService.createOrder(principal.userId(), items, address, request.currency(), request.paymentReference());
         } else {
             if (request.guestEmail() == null || request.guestEmail().isBlank()) {
                 throw new com.walmal.common.exception.BusinessRuleException(
                         "guestEmail is required for guest checkout");
             }
-            orderId = orderCreationService.createGuestOrder(request.guestEmail(), items, address, request.currency());
+            orderId = orderCreationService.createGuestOrder(request.guestEmail(), items, address, request.currency(), request.paymentReference());
         }
         return ApiResponse.ok("Order created", orderId);
     }

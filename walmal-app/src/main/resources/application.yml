@@ -84,6 +84,10 @@ walmal:
     # local dev / demo / E2E. Production sets WALMAL_PAYMENT_GATEWAY to a real
     # gateway id once one is wired — never `stub`.
     gateway: ${WALMAL_PAYMENT_GATEWAY:}
+    stripe:
+      # Required only when gateway=stripe; that impl fails fast at startup if it
+      # is blank. Never has a real default.
+      secret-key: ${STRIPE_SECRET_KEY:}
   cors:
     # Override with WALMAL_CORS_ALLOWED_ORIGINS=https://app.example.com in production.
     # WALMAL_TRUST_PROXY=true must also be set when a reverse proxy (Nginx/Caddy) sets X-Forwarded-For.

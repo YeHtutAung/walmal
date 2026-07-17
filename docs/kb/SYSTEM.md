@@ -56,6 +56,31 @@ Client parsing precedence: field errors > `message` > `detail`.
 - Delivery guarantee: at-least-once (relay retries up to 60 attempts before parking a row as FAILED; a delete rollback can re-send a row). Consumers must be idempotent.
 - FAILED-row recovery: reset via `UPDATE outbox_events SET status='PENDING', attempts=0 WHERE status='FAILED'`. See `docs/DR_PLAN.md` Scenario 6.
 
+## Payment Verification Contract (walmal-store ↔ walmal)
+
+Web checkout is **client-confirms, server-verifies**. The shopper confirms the
+card payment in the browser (Stripe `confirmCardPayment`); the store then calls
+`POST /api/v1/orders` and **must include `paymentReference`** — the Stripe
+PaymentIntent id (`pi_...`). `paymentReference` is required (`@NotBlank`); a
+request without it is `400`, so no order can be confirmed without a payment to
+verify.
+
+The backend verifies server-side before confirming (never trusts the client):
+- `stub` gateway (dev/test/demo) accepts any reference — no real check.
+- `stripe` gateway (production) retrieves the PaymentIntent by that id and
+  confirms the order only if Stripe reports it `succeeded` **and** its amount
+  (in minor units) and currency equal the server-computed order total. A
+  mismatch or a non-succeeded intent releases the reservation and cancels the
+  order (`PAYMENT_FAILED`).
+
+Order currency is server-authoritative regardless of gateway: it must equal the
+variant's own price currency, else `400` (a client cannot pay a cheaper currency
+for the same goods).
+
+POS in-store sales are terminal-authoritative: `PosSaleServiceImpl` passes a
+`pos-terminal:<terminalId>` reference, which the stripe gateway accepts without a
+Stripe call (payment was captured at the reader).
+
 ## Admin-Facing Endpoint Contracts
 
 Endpoints intended for consumption by `walmal-admin` (or other non-walmal clients) that aren't covered by the generic Auth/Error contracts above.
@@ -88,10 +113,14 @@ Endpoints intended for consumption by `walmal-admin` (or other non-walmal client
   no default.** Unset means no gateway bean is created, so the app fails fast at
   startup (`OrderCreationServiceImpl` has an unsatisfied `PaymentGatewayService`
   dependency) rather than confirming orders on the always-success stub. The
-  `test` profile sets it to `stub` (local/dev/demo/E2E). A production deployment
-  needs a real gateway wired and this set to its id — **never `stub`**. (NB: real
-  server-side payment verification is not yet implemented — see the security
-  review's finding #2.)
+  `test` profile sets it to `stub` (local/dev/demo/E2E, accepts any reference).
+  Production sets it to `stripe`, which verifies each order's payment against
+  Stripe server-side (see the Payment Verification contract below) and requires
+  `STRIPE_SECRET_KEY`. Never `stub` in production.
+- `STRIPE_SECRET_KEY` — required by the backend when `WALMAL_PAYMENT_GATEWAY=stripe`
+  (maps to `walmal.payment.stripe.secret-key`; the stripe gateway fails fast at
+  startup if blank). The **same** secret the walmal-store payment-intent route
+  uses to create the intent — store creates, backend verifies.
 - `WALMAL_RATE_LIMIT_UNAUTHENTICATED` — req/min for guests (default 20)
 - `WALMAL_TRUST_PROXY` — set true when behind a reverse proxy
 

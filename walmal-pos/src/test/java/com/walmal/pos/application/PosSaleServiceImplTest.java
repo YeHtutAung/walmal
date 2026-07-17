@@ -86,7 +86,7 @@ class PosSaleServiceImplTest {
                         "Test Product", "Red", "M", ProductStatus.ACTIVE)));
         when(productPricingService.getPriceForVariant(variantId)).thenReturn(
                 new PriceDto(variantId, BigDecimal.valueOf(49.99), "SGD", Instant.now()));
-        when(orderCreationService.createOrder(any(), any(), any(), any()))
+        when(orderCreationService.createOrder(any(), any(), any(), any(), any()))
                 .thenReturn(UUID.randomUUID());
         when(posSaleRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(posSaleItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -124,7 +124,7 @@ class PosSaleServiceImplTest {
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("not active");
 
-        verify(orderCreationService, never()).createOrder(any(), any(), any(), any());
+        verify(orderCreationService, never()).createOrder(any(), any(), any(), any(), any());
         verify(posSaleRepository, never()).save(any(PosSale.class));
     }
 
@@ -158,7 +158,7 @@ class PosSaleServiceImplTest {
 
         assertThat(result).isEqualTo(cachedDto);
         // createOrder should NOT be called on cache hit
-        verify(orderCreationService, never()).createOrder(any(), any(), any(), any());
+        verify(orderCreationService, never()).createOrder(any(), any(), any(), any(), any());
         verify(posTerminalRepository, never()).findById(any());
     }
 }

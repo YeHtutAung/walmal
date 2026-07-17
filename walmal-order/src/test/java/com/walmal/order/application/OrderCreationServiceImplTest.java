@@ -87,8 +87,21 @@ class OrderCreationServiceImplTest {
             // but for unit tests we use a real-ish Order and just return it
             return o;
         });
-        when(paymentGatewayService.charge(any(), any(), any())).thenReturn(
+        when(paymentGatewayService.verifyPayment(any(), any(), any(), any())).thenReturn(
                 new PaymentResult("PAY-REF-001", PaymentStatus.SUCCESS));
+    }
+
+    @Test
+    @DisplayName("should_throwBusinessRuleException_when_paymentReferenceIsBlank")
+    void should_throwBusinessRuleException_when_paymentReferenceIsBlank() {
+        // No payment reference => cannot have paid => reject before any side effect.
+        assertThatThrownBy(() -> service.createOrder(userId, items, address, "USD", "  "))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("payment reference is required");
+
+        verify(orderRepository, never()).save(any());
+        verify(inventoryReservationService, never()).reserveStock(any(), any());
+        verify(paymentGatewayService, never()).verifyPayment(any(), any(), any(), any());
     }
 
     @Test
@@ -96,7 +109,7 @@ class OrderCreationServiceImplTest {
     void should_throwBusinessRuleException_when_variantIsInactive() {
         when(productCatalogService.isVariantActive(variantId)).thenReturn(false);
 
-        assertThatThrownBy(() -> service.createOrder(userId, items, address, "USD"))
+        assertThatThrownBy(() -> service.createOrder(userId, items, address, "USD", "pi_test_123"))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("not active");
 
@@ -116,13 +129,13 @@ class OrderCreationServiceImplTest {
 
         // Client claims MYR for a USD-priced variant — must be rejected before any
         // order is persisted, stock reserved, or payment charged.
-        assertThatThrownBy(() -> service.createOrder(userId, items, address, "MYR"))
+        assertThatThrownBy(() -> service.createOrder(userId, items, address, "MYR", "pi_test_123"))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("does not match the price currency");
 
         verify(orderRepository, never()).save(any());
         verify(inventoryReservationService, never()).reserveStock(any(), any());
-        verify(paymentGatewayService, never()).charge(any(), any(), any());
+        verify(paymentGatewayService, never()).verifyPayment(any(), any(), any(), any());
     }
 
     @Test
@@ -130,7 +143,7 @@ class OrderCreationServiceImplTest {
     void should_publishOrderCreatedEvent_when_orderPersisted() {
         setupHappyPath();
 
-        service.createOrder(userId, items, address, "USD");
+        service.createOrder(userId, items, address, "USD", "pi_test_123");
 
         ArgumentCaptor<DomainEvent> captor = ArgumentCaptor.forClass(DomainEvent.class);
         verify(eventPublisher, atLeast(1)).publish(captor.capture(), anyString());
@@ -145,7 +158,7 @@ class OrderCreationServiceImplTest {
     void should_publishOrderConfirmedEvent_when_paymentSucceeds() {
         setupHappyPath();
 
-        service.createOrder(userId, items, address, "USD");
+        service.createOrder(userId, items, address, "USD", "pi_test_123");
 
         ArgumentCaptor<DomainEvent> captor = ArgumentCaptor.forClass(DomainEvent.class);
         verify(eventPublisher, atLeast(2)).publish(captor.capture(), anyString());
@@ -165,10 +178,10 @@ class OrderCreationServiceImplTest {
         when(productPricingService.getPriceForVariant(variantId)).thenReturn(
                 new PriceDto(variantId, BigDecimal.valueOf(49.99), "USD", Instant.now()));
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(paymentGatewayService.charge(any(), any(), any())).thenReturn(
+        when(paymentGatewayService.verifyPayment(any(), any(), any(), any())).thenReturn(
                 new PaymentResult(null, PaymentStatus.FAILED));
 
-        service.createOrder(userId, items, address, "USD");
+        service.createOrder(userId, items, address, "USD", "pi_test_123");
 
         ArgumentCaptor<DomainEvent> captor = ArgumentCaptor.forClass(DomainEvent.class);
         verify(eventPublisher, atLeast(1)).publish(captor.capture(), anyString());
@@ -188,10 +201,10 @@ class OrderCreationServiceImplTest {
         when(productPricingService.getPriceForVariant(variantId)).thenReturn(
                 new PriceDto(variantId, BigDecimal.valueOf(49.99), "USD", Instant.now()));
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(paymentGatewayService.charge(any(), any(), any())).thenReturn(
+        when(paymentGatewayService.verifyPayment(any(), any(), any(), any())).thenReturn(
                 new PaymentResult(null, PaymentStatus.FAILED));
 
-        service.createOrder(userId, items, address, "USD");
+        service.createOrder(userId, items, address, "USD", "pi_test_123");
 
         verify(inventoryReservationService).releaseReservation(any(), any());
         verify(inventoryReservationService, never()).confirmReservation(any());

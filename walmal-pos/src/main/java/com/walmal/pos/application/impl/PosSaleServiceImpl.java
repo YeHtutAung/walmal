@@ -3,6 +3,7 @@ package com.walmal.pos.application.impl;
 import com.walmal.common.cache.CacheService;
 import com.walmal.common.event.DomainEventPublisher;
 import com.walmal.common.exception.BusinessRuleException;
+import com.walmal.common.payment.PaymentGatewayService;
 import com.walmal.common.exception.ResourceNotFoundException;
 import com.walmal.order.application.OrderCreationService;
 import com.walmal.order.application.dto.OrderLineItem;
@@ -139,7 +140,12 @@ public class PosSaleServiceImpl implements PosSaleService {
                         r.lineItem().locationId(),
                         r.lineItem().quantity()))
                 .toList();
-        UUID orderId = orderCreationService.createOrder(cashierId, orderLineItems, sentinelAddress, currency);
+        // POS payment was captured at the terminal (cash / card reader) — it is
+        // terminal-authoritative, not a web gateway payment. Pass a POS marker
+        // reference so the gateway treats it as already-paid rather than trying to
+        // verify it as a Stripe PaymentIntent.
+        String posPaymentReference = PaymentGatewayService.POS_TERMINAL_REFERENCE_PREFIX + terminalId;
+        UUID orderId = orderCreationService.createOrder(cashierId, orderLineItems, sentinelAddress, currency, posPaymentReference);
 
         // Step 6: persist POS sale and items (covered by @Transactional on this method)
         PosSale sale = new PosSale(

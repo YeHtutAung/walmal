@@ -358,8 +358,8 @@ class OrderSearchIntegrationTest {
         @Bean
         @Primary
         PaymentGatewayService stubPaymentGatewayService() {
-            return (orderId, amount, currency) ->
-                    new PaymentResult(UUID.randomUUID().toString(), PaymentStatus.SUCCESS);
+            return (orderId, paymentReference, amount, currency) ->
+                    new PaymentResult(paymentReference, PaymentStatus.SUCCESS);
         }
     }
 }

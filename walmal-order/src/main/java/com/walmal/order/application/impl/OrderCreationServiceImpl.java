@@ -79,19 +79,26 @@ public class OrderCreationServiceImpl implements OrderCreationService {
     @Override
     @Transactional
     public UUID createGuestOrder(String guestEmail, List<OrderLineItem> items,
-                                  ShippingAddress shippingAddress, String currency) {
-        return doCreateOrder(null, guestEmail, items, shippingAddress, currency);
+                                  ShippingAddress shippingAddress, String currency, String paymentReference) {
+        return doCreateOrder(null, guestEmail, items, shippingAddress, currency, paymentReference);
     }
 
     @Override
     @Transactional
     public UUID createOrder(UUID userId, List<OrderLineItem> items,
-                            ShippingAddress shippingAddress, String currency) {
-        return doCreateOrder(userId, null, items, shippingAddress, currency);
+                            ShippingAddress shippingAddress, String currency, String paymentReference) {
+        return doCreateOrder(userId, null, items, shippingAddress, currency, paymentReference);
     }
 
     private UUID doCreateOrder(UUID userId, String guestEmail, List<OrderLineItem> items,
-                                ShippingAddress shippingAddress, String currency) {
+                                ShippingAddress shippingAddress, String currency, String paymentReference) {
+
+        // A payment reference is mandatory: the client must have already confirmed
+        // payment, and we verify it server-side below. Without this guard a caller
+        // could POST an order and have it confirmed having paid nothing.
+        if (paymentReference == null || paymentReference.isBlank()) {
+            throw new BusinessRuleException("A payment reference is required to create an order");
+        }
 
         // Step 1 & 2: validate variants and collect snapshots
         List<LineItemResolved> resolved = new ArrayList<>();
@@ -173,11 +180,12 @@ public class OrderCreationServiceImpl implements OrderCreationService {
                 .toList();
         inventoryReservationService.reserveStock(orderId, reservationItems);
 
-        // Step 7: charge payment
-        PaymentResult paymentResult = paymentGatewayService.charge(orderId, totalAmount, currency);
+        // Step 7: verify the client-confirmed payment server-side (amount + currency
+        // reconciled against the server-computed total by the gateway impl)
+        PaymentResult paymentResult = paymentGatewayService.verifyPayment(orderId, paymentReference, totalAmount, currency);
 
         if (paymentResult.status() != PaymentStatus.SUCCESS) {
-            log.warn("Payment failed for order={}. Releasing reservation.", orderId);
+            log.warn("Payment verification failed for order={}. Releasing reservation.", orderId);
 
             // Release inventory reservation
             inventoryReservationService.releaseReservation(orderId, ConflictReason.CANCELLED);
