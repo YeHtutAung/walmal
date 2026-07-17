@@ -3,6 +3,7 @@ package com.walmal.pos.application;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.walmal.common.audit.AuditEntry;
 import com.walmal.common.audit.AuditService;
+import com.walmal.common.exception.BusinessRuleException;
 import com.walmal.common.event.DomainEvent;
 import com.walmal.common.event.DomainEventPublisher;
 import com.walmal.inventory.application.ConflictOutcome;
@@ -31,6 +32,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -65,11 +67,15 @@ class PosSyncItemProcessorTest {
     private PosSyncQueue queueRow;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         // ObjectMapper is injected via @InjectMocks — need to provide it manually
         processor = new PosSyncItemProcessor(
                 posSaleRepository, posSaleItemRepository, posSyncQueueRepository,
                 inventoryReservationService, auditService, eventPublisher, new ObjectMapper());
+        // @Value field Spring would inject at runtime (default 7 offline days)
+        java.lang.reflect.Field ageField = PosSyncItemProcessor.class.getDeclaredField("maxOfflineAgeDays");
+        ageField.setAccessible(true);
+        ageField.set(processor, 7);
 
         terminalId = UUID.randomUUID();
         variantId = UUID.randomUUID();
@@ -163,6 +169,64 @@ class PosSyncItemProcessorTest {
         ArgumentCaptor<DomainEvent> eventCaptor = ArgumentCaptor.forClass(DomainEvent.class);
         verify(eventPublisher).publish(eventCaptor.capture(), eq("pos.sync.conflict.resolved"));
         assertThat(eventCaptor.getValue()).isInstanceOf(PosSyncConflictResolvedEvent.class);
+    }
+
+    // ── #7: device-supplied field validation ─────────────────────────────────
+
+    @Test
+    @DisplayName("should_rejectPayload_when_soldAtBackdatedBeyondWindow")
+    void should_rejectPayload_when_soldAtTooOld() {
+        OfflineSaleLineItem lineItem = new OfflineSaleLineItem(
+                variantId, locationId, 1, BigDecimal.valueOf(49.99), "SGD", "P", "SKU");
+        OfflineSalePayload backdated = new OfflineSalePayload(
+                UUID.randomUUID(), List.of(lineItem), "SGD",
+                Instant.now().minus(Duration.ofDays(30)));
+
+        assertThatThrownBy(() -> processor.processItem(terminal, backdated, queueRow))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("older than");
+        verify(inventoryReservationService, never())
+                .resolveConflict(any(), any(), any(), anyInt(), any(), any());
+    }
+
+    @Test
+    @DisplayName("should_rejectPayload_when_soldAtInFuture")
+    void should_rejectPayload_when_soldAtInFuture() {
+        OfflineSaleLineItem lineItem = new OfflineSaleLineItem(
+                variantId, locationId, 1, BigDecimal.valueOf(49.99), "SGD", "P", "SKU");
+        OfflineSalePayload future = new OfflineSalePayload(
+                UUID.randomUUID(), List.of(lineItem), "SGD",
+                Instant.now().plus(Duration.ofHours(1)));
+
+        assertThatThrownBy(() -> processor.processItem(terminal, future, queueRow))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("future");
+    }
+
+    @Test
+    @DisplayName("should_rejectPayload_when_priceNonPositive")
+    void should_rejectPayload_when_priceNonPositive() {
+        OfflineSaleLineItem lineItem = new OfflineSaleLineItem(
+                variantId, locationId, 1, BigDecimal.ZERO, "SGD", "P", "SKU");
+        OfflineSalePayload badPrice = new OfflineSalePayload(
+                UUID.randomUUID(), List.of(lineItem), "SGD", Instant.now());
+
+        assertThatThrownBy(() -> processor.processItem(terminal, badPrice, queueRow))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("non-positive price");
+    }
+
+    @Test
+    @DisplayName("should_rejectPayload_when_lineItemCurrencyMismatchesSale")
+    void should_rejectPayload_when_currencyMismatch() {
+        OfflineSaleLineItem lineItem = new OfflineSaleLineItem(
+                variantId, locationId, 1, BigDecimal.valueOf(49.99), "USD", "P", "SKU");
+        OfflineSalePayload mixed = new OfflineSalePayload(
+                UUID.randomUUID(), List.of(lineItem), "SGD", Instant.now());
+
+        assertThatThrownBy(() -> processor.processItem(terminal, mixed, queueRow))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("does not match the sale currency");
     }
 
     @Test

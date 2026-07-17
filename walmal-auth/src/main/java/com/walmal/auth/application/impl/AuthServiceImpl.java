@@ -99,11 +99,14 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessRuleException("Invalid credentials");
         }
 
-        if (!user.isActive()) {
-            throw new BusinessRuleException("Account is deactivated: " + request.username());
-        }
-
-        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+        // Run the bcrypt check for BOTH active and inactive users, then fail with
+        // the SAME generic message for a wrong password OR an inactive account.
+        // A distinct "deactivated" response (which also echoed the username) leaked
+        // both that the account exists and its state — user enumeration (M1). Doing
+        // the check unconditionally also keeps an inactive account timing-
+        // indistinguishable from an active account with a wrong password.
+        boolean passwordMatches = passwordEncoder.matches(request.password(), user.getPasswordHash());
+        if (!passwordMatches || !user.isActive()) {
             throw new BusinessRuleException("Invalid credentials");
         }
 

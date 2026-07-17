@@ -103,15 +103,18 @@ class AuthServiceImplTest {
     }
 
     @Test
-    @DisplayName("should_throwBusinessRuleException_when_userIsInactive")
-    void should_throwBusinessRuleException_when_userIsInactive() {
+    @DisplayName("should_throwGenericInvalidCredentials_when_userIsInactive")
+    void should_throwGenericInvalidCredentials_when_userIsInactive() {
+        // Even with the CORRECT password, an inactive account must fail with the
+        // same generic message as a wrong password — no "deactivated" leak, no
+        // username echo (user-enumeration fix).
         User user = buildUser(Role.CUSTOMER, "password123");
         user.setActive(false);
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
 
         assertThatThrownBy(() -> authService.login(new LoginRequest("alice", "password123")))
                 .isInstanceOf(BusinessRuleException.class)
-                .hasMessageContaining("deactivated");
+                .hasMessage("Invalid credentials");
     }
 
     @Test

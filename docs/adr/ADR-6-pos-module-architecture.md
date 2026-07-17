@@ -211,6 +211,19 @@ between this ADR's "maximally idempotent" intent and the earlier
 implementation, which echoed `localId` into logs only and reprocessed every
 resubmitted payload.
 
+**Device-field validation (implemented 2026-07-17, security review #7):** offline
+payload fields are device-supplied and cannot be trusted blindly. `processItem`
+now rejects (marks the queue row FAILED) a payload whose `soldAt` is in the future
+(beyond a 5-minute clock skew) or older than the offline sync window
+(`pos.sync.max-offline-age-days`, default 7) — this bounds a backdating attack,
+since the conflict-resolution rule is "earlier POS sale wins", so an unbounded past
+`soldAt` could cancel a legitimate web reservation. It also rejects non-positive
+`priceAtSale` and any line-item currency that disagrees with the sale currency.
+**Deliberately not done:** reconciling `priceAtSale` against the current server
+price — POS registers legitimately apply manual discounts, so a ceiling/equality
+check needs a POS pricing-policy decision (and per-currency handling) first. That
+remains open follow-up.
+
 The known MVP limitation (large batches risk HTTP timeout) is acknowledged. No background
 job is introduced for MVP. The HTTP timeout risk is mitigated by:
 - Setting a generous read timeout on the sync endpoint (configurable,

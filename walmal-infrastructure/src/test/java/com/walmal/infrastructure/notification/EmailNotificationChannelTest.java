@@ -39,4 +39,14 @@ class EmailNotificationChannelTest {
         assertThat(channel.supports(NotificationType.EMAIL)).isTrue();
         assertThat(channel.supports(NotificationType.IN_APP)).isFalse();
     }
+
+    @Test
+    void should_maskRecipientEmail_soRawPiiNeverLogged() {
+        // The address is PII; the masked form keeps only the first char + domain.
+        assertThat(EmailNotificationChannel.maskEmail("buyer@example.com"))
+                .isEqualTo("b***@example.com");
+        assertThat(EmailNotificationChannel.maskEmail(null)).isEqualTo("***");
+        assertThat(EmailNotificationChannel.maskEmail("")).isEqualTo("***");
+        assertThat(EmailNotificationChannel.maskEmail("@example.com")).isEqualTo("***");
+    }
 }

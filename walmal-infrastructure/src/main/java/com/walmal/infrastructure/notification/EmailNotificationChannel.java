@@ -25,11 +25,25 @@ public class EmailNotificationChannel implements NotificationChannel {
         message.setSubject(notification.subject());
         message.setText(notification.body());
         mailSender.send(message);
-        log.info("Email sent to {}: {}", notification.recipient(), notification.subject());
+        // Mask the recipient — the raw address (incl. guest-checkout emails) is PII
+        // and must not land in the log store at INFO.
+        log.info("Email sent to {}: {}", maskEmail(notification.recipient()), notification.subject());
     }
 
     @Override
     public boolean supports(Notification.NotificationType type) {
         return type == Notification.NotificationType.EMAIL;
+    }
+
+    /** "buyer@example.com" -> "b***@example.com"; enough to correlate without exposing the address. */
+    static String maskEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return "***";
+        }
+        int at = email.indexOf('@');
+        if (at <= 0) {
+            return "***";
+        }
+        return email.charAt(0) + "***" + email.substring(at);
     }
 }

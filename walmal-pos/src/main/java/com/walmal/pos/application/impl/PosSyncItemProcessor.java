@@ -23,7 +23,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.walmal.common.exception.BusinessRuleException;
+import org.springframework.beans.factory.annotation.Value;
+
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,6 +60,14 @@ import java.util.UUID;
 public class PosSyncItemProcessor {
 
     private static final Logger log = LoggerFactory.getLogger(PosSyncItemProcessor.class);
+
+    /** Tolerance for a terminal clock running ahead of the server. */
+    private static final Duration MAX_CLOCK_SKEW = Duration.ofMinutes(5);
+
+    /** Reject offline sales claiming to be older than this — bounds how far a
+     *  terminal can backdate {@code soldAt} to win POS-priority conflict resolution. */
+    @Value("${pos.sync.max-offline-age-days:7}")
+    private int maxOfflineAgeDays;
 
     private final PosSaleRepository posSaleRepository;
     private final PosSaleItemRepository posSaleItemRepository;
@@ -97,6 +109,12 @@ public class PosSyncItemProcessor {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public SyncItemResult processItem(PosTerminal terminal, OfflineSalePayload payload,
                                        PosSyncQueue queueRow) {
+
+        // Step 0: validate device-supplied fields before trusting them. Throwing
+        // here rolls back Phase 2 and the caller marks the queue row FAILED for
+        // operator review — a rejected payload never resolves conflicts or records
+        // a sale. (Security review finding #7.)
+        validatePayload(payload);
 
         // Step 1: compute totalAmount from line items
         BigDecimal totalAmount = payload.items().stream()
@@ -191,6 +209,50 @@ public class PosSyncItemProcessor {
                 sale.getId(), terminal.getId(), worstOutcome);
 
         return new SyncItemResult(payload.localId(), worstOutcome, true, null);
+    }
+
+    /**
+     * Rejects payloads whose device-supplied fields cannot be trusted:
+     * <ul>
+     *   <li><b>soldAt</b> in the future (beyond clock skew) or older than the sync
+     *       window. This bounds the backdating attack — the conflict-resolution rule
+     *       is "earlier POS sale wins", so an unbounded past {@code soldAt} could
+     *       cancel a legitimate web reservation.</li>
+     *   <li><b>priceAtSale</b> non-positive, or a line-item currency inconsistent
+     *       with the sale currency (which would make the total meaningless).</li>
+     * </ul>
+     *
+     * <p>Deliberately NOT enforced here: reconciling {@code priceAtSale} against the
+     * current server price. POS registers legitimately apply manual discounts, so a
+     * ceiling/equality check needs a POS pricing-policy decision (and per-currency
+     * handling) before it can be added without breaking real sales. Tracked as
+     * open follow-up to security review #7.</p>
+     */
+    private void validatePayload(OfflineSalePayload payload) {
+        Instant now = Instant.now();
+        Instant soldAt = payload.soldAt();
+        if (soldAt == null) {
+            throw new BusinessRuleException("Offline sale soldAt is required");
+        }
+        if (soldAt.isAfter(now.plus(MAX_CLOCK_SKEW))) {
+            throw new BusinessRuleException("Offline sale soldAt is in the future: " + soldAt);
+        }
+        if (soldAt.isBefore(now.minus(Duration.ofDays(maxOfflineAgeDays)))) {
+            throw new BusinessRuleException(
+                    "Offline sale soldAt " + soldAt + " is older than the "
+                    + maxOfflineAgeDays + "-day offline sync window");
+        }
+        for (OfflineSaleLineItem item : payload.items()) {
+            if (item.priceAtSale() == null || item.priceAtSale().signum() <= 0) {
+                throw new BusinessRuleException(
+                        "Offline sale line item has a non-positive price: variant " + item.variantId());
+            }
+            if (item.currency() == null || !item.currency().equalsIgnoreCase(payload.currency())) {
+                throw new BusinessRuleException(
+                        "Offline sale line item currency " + item.currency()
+                        + " does not match the sale currency " + payload.currency());
+            }
+        }
     }
 
     /**
