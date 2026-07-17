@@ -152,6 +152,12 @@ public class OrderController {
     })
     public void cancelOrder(@PathVariable UUID orderId,
                              @AuthenticationPrincipal AuthenticatedPrincipal principal) {
+        // Ownership check BEFORE cancelling — a customer may cancel only their
+        // own order (ADMIN/STAFF may cancel any). Without this, cancelOrder used
+        // the principal id for the audit row only, leaving the endpoint open to
+        // cancelling anyone's order by id.
+        OrderDetailDto order = orderQueryService.getOrder(orderId);
+        verifyOrderOwnership(order.userId(), principal);
         orderCreationService.cancelOrder(orderId, principal.userId());
     }
 

@@ -72,7 +72,11 @@ Endpoints intended for consumption by `walmal-admin` (or other non-walmal client
 ## Environment Variables Matrix (names + purpose only — never values)
 
 ### walmal (Spring Boot)
-- `WALMAL_JWT_SECRET` — HS256 signing key
+- `WALMAL_JWT_SECRET` — HS256 signing key. **Mandatory: no default.** The
+  default profile has no fallback value, so the app fails fast at startup
+  ("walmal.jwt.secret must not be blank") if it is unset — it cannot boot on
+  a committed key. Must be ≥32 bytes. Only the `test` profile supplies a
+  throwaway key (via `application-test.yml`), for local/E2E runs.
 - `SPRING_DATASOURCE_URL/USERNAME/PASSWORD` — Postgres connection
 - `SPRING_DATA_REDIS_HOST/PORT/PASSWORD` — Redis connection
 - `SPRING_RABBITMQ_HOST/PORT/USERNAME/PASSWORD/VIRTUAL_HOST` — RabbitMQ

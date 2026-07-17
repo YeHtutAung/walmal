@@ -14,7 +14,11 @@ public record JwtProperties(String secret, long accessTokenExpireMinutes) {
             accessTokenExpireMinutes = 15;
         }
         if (secret == null || secret.isBlank()) {
-            throw new IllegalArgumentException("walmal.jwt.secret must not be blank");
+            throw new IllegalArgumentException(
+                "walmal.jwt.secret must not be blank. Set the WALMAL_JWT_SECRET "
+                + "environment variable to a value of at least 32 bytes (256 bits); "
+                + "there is deliberately no default so the app cannot boot on a "
+                + "committed key.");
         }
         if (secret.getBytes(java.nio.charset.StandardCharsets.UTF_8).length < 32) {
             throw new IllegalArgumentException(

@@ -1,4 +1,10 @@
 walmal:
+  jwt:
+    # Test-profile-only signing key. The default profile (application.yml) has
+    # NO default secret and fails fast if WALMAL_JWT_SECRET is unset — so prod,
+    # which never activates the test profile, cannot boot on a committed key.
+    # This value is a throwaway for E2E/local test runs, not a real secret.
+    secret: walmal-test-profile-secret-key-not-for-production-min-256-bits
   cors:
     # E2E tests run the Next.js frontend on port 3001 to avoid conflicting with a
     # dev server on 3000.  Port 3001 must be in the allowed-origins list so that

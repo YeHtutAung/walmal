@@ -86,7 +86,10 @@ public class InventoryReservationController {
 
     @PostMapping("/{orderId}/confirm")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("isAuthenticated()")
+    // Ops-only stock-lifecycle mutation. In-process the order module calls the
+    // InventoryReservationService interface directly; over HTTP this is a manual
+    // ops action, so it must not be reachable by any authenticated customer.
+    @PreAuthorize("hasAnyRole('ADMIN', 'WAREHOUSE_MANAGER')")
     @Operation(summary = "Confirm reservations on payment success",
                description = "Transitions PENDING → CONFIRMED. Stock permanently deducted.")
     @ApiResponses({
@@ -101,7 +104,8 @@ public class InventoryReservationController {
 
     @PostMapping("/{orderId}/release")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("isAuthenticated()")
+    // Ops-only stock-lifecycle mutation (see confirm above).
+    @PreAuthorize("hasAnyRole('ADMIN', 'WAREHOUSE_MANAGER')")
     @Operation(summary = "Release reservations on order cancellation",
                description = "Transitions PENDING → RELEASED. Returns stock to available pool.")
     @ApiResponses({
@@ -118,10 +122,14 @@ public class InventoryReservationController {
     }
 
     @PostMapping("/resolve-conflict")
-    @PreAuthorize("isAuthenticated()")
+    // Ops-only. The POS module resolves conflicts in-process via the
+    // InventoryReservationService interface (PosSyncItemProcessor), NOT this
+    // HTTP endpoint — so gating it to ops roles breaks no sync flow.
+    @PreAuthorize("hasAnyRole('ADMIN', 'WAREHOUSE_MANAGER')")
     @Operation(summary = "Resolve POS offline sync conflict",
                description = "Determines POS priority vs buffer stock vs BUFFER_EXHAUSTED. " +
-                             "Called by POS module during online sync. Returns the resolution outcome.")
+                             "Manual ops action; the POS module resolves in-process via the " +
+                             "InventoryReservationService interface. Returns the resolution outcome.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Resolved — outcome in body"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized")

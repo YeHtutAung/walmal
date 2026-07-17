@@ -46,6 +46,7 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
@@ -391,14 +392,53 @@ class OrderControllerTest {
     // ── PUT cancel ────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("should_return204_when_cancelOrder")
-    void should_return204_when_cancelOrder() throws Exception {
-        AuthenticatedPrincipal customer = new AuthenticatedPrincipal(
-                UUID.randomUUID(), "customer1", "CUSTOMER");
+    @DisplayName("should_return204_when_cancelOrder_asOwner")
+    void should_return204_when_cancelOrder_asOwner() throws Exception {
+        UUID ownerId = UUID.randomUUID();
+        AuthenticatedPrincipal owner = new AuthenticatedPrincipal(ownerId, "customer1", "CUSTOMER");
         UUID orderId = UUID.randomUUID();
+        OrderDetailDto dto = new OrderDetailDto(
+                orderId, ownerId, OrderStatus.PENDING,
+                BigDecimal.valueOf(99.99), "USD", null, List.of(), Instant.now());
+
+        when(orderQueryService.getOrder(orderId)).thenReturn(dto);
 
         mockMvc.perform(put("/api/v1/orders/{orderId}/cancel", orderId)
-                        .with(authentication(buildAuth(customer))))
+                        .with(authentication(buildAuth(owner))))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("should_return409_when_cancellingAnotherUsersOrder")
+    void should_return409_when_cancellingAnotherUsersOrder() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        AuthenticatedPrincipal other = new AuthenticatedPrincipal(UUID.randomUUID(), "other", "CUSTOMER");
+        OrderDetailDto dto = new OrderDetailDto(
+                orderId, UUID.randomUUID(), OrderStatus.PENDING,
+                BigDecimal.valueOf(99.99), "USD", null, List.of(), Instant.now());
+
+        when(orderQueryService.getOrder(orderId)).thenReturn(dto);
+
+        mockMvc.perform(put("/api/v1/orders/{orderId}/cancel", orderId)
+                        .with(authentication(buildAuth(other))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false));
+        verify(orderCreationService, never()).cancelOrder(any(), any());
+    }
+
+    @Test
+    @DisplayName("should_return204_when_adminCancelsAnyOrder")
+    void should_return204_when_adminCancelsAnyOrder() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        AuthenticatedPrincipal admin = new AuthenticatedPrincipal(UUID.randomUUID(), "admin1", "ADMIN");
+        OrderDetailDto dto = new OrderDetailDto(
+                orderId, UUID.randomUUID(), OrderStatus.PENDING,
+                BigDecimal.valueOf(99.99), "USD", null, List.of(), Instant.now());
+
+        when(orderQueryService.getOrder(orderId)).thenReturn(dto);
+
+        mockMvc.perform(put("/api/v1/orders/{orderId}/cancel", orderId)
+                        .with(authentication(buildAuth(admin))))
                 .andExpect(status().isNoContent());
     }
 
