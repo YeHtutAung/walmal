@@ -24,6 +24,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.walmal.common.exception.BusinessRuleException;
+import com.walmal.product.application.ProductPricingService;
+import com.walmal.product.application.dto.PriceDto;
 import org.springframework.beans.factory.annotation.Value;
 
 import java.math.BigDecimal;
@@ -69,10 +71,17 @@ public class PosSyncItemProcessor {
     @Value("${pos.sync.max-offline-age-days:7}")
     private int maxOfflineAgeDays;
 
+    /** Max % a device-reported offline price may deviate (either direction) from the
+     *  current server price before the payload is rejected — catches both over- and
+     *  under-charge fraud while tolerating minor drift during the offline window. */
+    @Value("${pos.sync.max-price-deviation-pct:20}")
+    private int maxPriceDeviationPct;
+
     private final PosSaleRepository posSaleRepository;
     private final PosSaleItemRepository posSaleItemRepository;
     private final PosSyncQueueRepository posSyncQueueRepository;
     private final InventoryReservationService inventoryReservationService;
+    private final ProductPricingService productPricingService;
     private final AuditService auditService;
     private final DomainEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
@@ -82,6 +91,7 @@ public class PosSyncItemProcessor {
             PosSaleItemRepository posSaleItemRepository,
             PosSyncQueueRepository posSyncQueueRepository,
             InventoryReservationService inventoryReservationService,
+            ProductPricingService productPricingService,
             AuditService auditService,
             DomainEventPublisher eventPublisher,
             ObjectMapper objectMapper) {
@@ -89,6 +99,7 @@ public class PosSyncItemProcessor {
         this.posSaleItemRepository = posSaleItemRepository;
         this.posSyncQueueRepository = posSyncQueueRepository;
         this.inventoryReservationService = inventoryReservationService;
+        this.productPricingService = productPricingService;
         this.auditService = auditService;
         this.eventPublisher = eventPublisher;
         this.objectMapper = objectMapper;
@@ -222,11 +233,12 @@ public class PosSyncItemProcessor {
      *       with the sale currency (which would make the total meaningless).</li>
      * </ul>
      *
-     * <p>Deliberately NOT enforced here: reconciling {@code priceAtSale} against the
-     * current server price. POS registers legitimately apply manual discounts, so a
-     * ceiling/equality check needs a POS pricing-policy decision (and per-currency
-     * handling) before it can be added without breaking real sales. Tracked as
-     * open follow-up to security review #7.</p>
+     * <p>Price reconciliation: the device-reported {@code priceAtSale} is kept (it is
+     * what the customer actually paid at the terminal) but must be within
+     * {@code pos.sync.max-price-deviation-pct} of the current server price — catching
+     * both over- and under-charge fraud while tolerating minor price drift during the
+     * offline window. A variant with no current server price cannot be reconciled and
+     * is rejected for operator review.</p>
      */
     private void validatePayload(OfflineSalePayload payload) {
         Instant now = Instant.now();
@@ -252,7 +264,34 @@ public class PosSyncItemProcessor {
                         "Offline sale line item currency " + item.currency()
                         + " does not match the sale currency " + payload.currency());
             }
+            PriceDto serverPrice = productPricingService.getCurrentPrice(item.variantId())
+                    .orElseThrow(() -> new BusinessRuleException(
+                            "No current server price to reconcile the offline sale against for variant "
+                            + item.variantId()));
+            if (!serverPrice.currency().equalsIgnoreCase(item.currency())) {
+                throw new BusinessRuleException(
+                        "Offline price currency " + item.currency() + " differs from the server price currency "
+                        + serverPrice.currency() + " for variant " + item.variantId());
+            }
+            if (!withinTolerance(item.priceAtSale(), serverPrice.amount(), maxPriceDeviationPct)) {
+                throw new BusinessRuleException(
+                        "Offline price " + item.priceAtSale() + " deviates more than " + maxPriceDeviationPct
+                        + "% from the server price " + serverPrice.amount() + " for variant " + item.variantId());
+            }
         }
+    }
+
+    /**
+     * True if {@code device} is within {@code pct}% of {@code server} in either
+     * direction. Pure and public for unit testing. A non-positive server price is
+     * never within tolerance (nothing sensible to reconcile against).
+     */
+    public static boolean withinTolerance(BigDecimal device, BigDecimal server, int pct) {
+        if (server == null || server.signum() <= 0 || device == null) {
+            return false;
+        }
+        BigDecimal allowed = server.multiply(BigDecimal.valueOf(pct)).movePointLeft(2).abs();
+        return device.subtract(server).abs().compareTo(allowed) <= 0;
     }
 
     /**

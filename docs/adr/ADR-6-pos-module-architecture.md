@@ -219,10 +219,18 @@ now rejects (marks the queue row FAILED) a payload whose `soldAt` is in the futu
 since the conflict-resolution rule is "earlier POS sale wins", so an unbounded past
 `soldAt` could cancel a legitimate web reservation. It also rejects non-positive
 `priceAtSale` and any line-item currency that disagrees with the sale currency.
-**Deliberately not done:** reconciling `priceAtSale` against the current server
-price — POS registers legitimately apply manual discounts, so a ceiling/equality
-check needs a POS pricing-policy decision (and per-currency handling) first. That
-remains open follow-up.
+
+**Price reconciliation (tolerance band):** the device-reported `priceAtSale` is
+kept (it is what the customer actually paid at the terminal) but must be within
+`pos.sync.max-price-deviation-pct` (default 20%) of the current server price in
+either direction — catching both overcharge and undercharge fraud while tolerating
+minor price drift during the offline window. A variant with no current server
+price, or a server price in a different currency, cannot be reconciled and is
+rejected for operator review. A tolerance band (rather than server-authoritative
+re-pricing) was chosen because this platform has no manual-discount feature — the
+online POS path already uses the server price — so the offline device price should
+match it closely; and keeping the device price preserves the recorded amount as
+the amount actually collected.
 
 The known MVP limitation (large batches risk HTTP timeout) is acknowledged. No background
 job is introduced for MVP. The HTTP timeout risk is mitigated by:

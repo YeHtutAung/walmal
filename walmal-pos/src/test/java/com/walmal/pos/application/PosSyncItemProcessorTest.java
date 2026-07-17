@@ -56,6 +56,7 @@ class PosSyncItemProcessorTest {
     @Mock InventoryReservationService inventoryReservationService;
     @Mock AuditService auditService;
     @Mock DomainEventPublisher eventPublisher;
+    @Mock com.walmal.product.application.ProductPricingService productPricingService;
 
     @InjectMocks PosSyncItemProcessor processor;
 
@@ -71,11 +72,14 @@ class PosSyncItemProcessorTest {
         // ObjectMapper is injected via @InjectMocks — need to provide it manually
         processor = new PosSyncItemProcessor(
                 posSaleRepository, posSaleItemRepository, posSyncQueueRepository,
-                inventoryReservationService, auditService, eventPublisher, new ObjectMapper());
-        // @Value field Spring would inject at runtime (default 7 offline days)
+                inventoryReservationService, productPricingService, auditService, eventPublisher, new ObjectMapper());
+        // @Value fields Spring would inject at runtime (defaults: 7 days, 20%)
         java.lang.reflect.Field ageField = PosSyncItemProcessor.class.getDeclaredField("maxOfflineAgeDays");
         ageField.setAccessible(true);
         ageField.set(processor, 7);
+        java.lang.reflect.Field pctField = PosSyncItemProcessor.class.getDeclaredField("maxPriceDeviationPct");
+        pctField.setAccessible(true);
+        pctField.set(processor, 20);
 
         terminalId = UUID.randomUUID();
         variantId = UUID.randomUUID();
@@ -89,6 +93,12 @@ class PosSyncItemProcessorTest {
         payload = new OfflineSalePayload(UUID.randomUUID(), List.of(lineItem), "SGD", Instant.now());
 
         queueRow = new PosSyncQueue(terminal, "{}", payload.localId());
+
+        // Server price matches the happy-path payload (49.99 SGD) so it reconciles.
+        // (Stubbed AFTER variantId is assigned.)
+        when(productPricingService.getCurrentPrice(variantId)).thenReturn(
+                java.util.Optional.of(new com.walmal.product.application.dto.PriceDto(
+                        variantId, BigDecimal.valueOf(49.99), "SGD", Instant.now())));
 
         when(posSaleRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(posSaleItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -227,6 +237,81 @@ class PosSyncItemProcessorTest {
         assertThatThrownBy(() -> processor.processItem(terminal, mixed, queueRow))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("does not match the sale currency");
+    }
+
+    @Test
+    @DisplayName("should_rejectPayload_when_priceExceedsServerPriceBeyondTolerance")
+    void should_rejectPayload_when_priceTooHigh() {
+        // Server 49.99, device 100.00 -> ~100% over, beyond the 20% band.
+        OfflineSaleLineItem lineItem = new OfflineSaleLineItem(
+                variantId, locationId, 1, BigDecimal.valueOf(100.00), "SGD", "P", "SKU");
+        OfflineSalePayload overpriced = new OfflineSalePayload(
+                UUID.randomUUID(), List.of(lineItem), "SGD", Instant.now());
+
+        assertThatThrownBy(() -> processor.processItem(terminal, overpriced, queueRow))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("deviates more than");
+        verify(inventoryReservationService, never())
+                .resolveConflict(any(), any(), any(), anyInt(), any(), any());
+    }
+
+    @Test
+    @DisplayName("should_rejectPayload_when_priceUndercutsServerPriceBeyondTolerance")
+    void should_rejectPayload_when_priceTooLow() {
+        // Server 49.99, device 10.00 -> ~80% under, beyond the 20% band (undercharge/theft).
+        OfflineSaleLineItem lineItem = new OfflineSaleLineItem(
+                variantId, locationId, 1, BigDecimal.valueOf(10.00), "SGD", "P", "SKU");
+        OfflineSalePayload underpriced = new OfflineSalePayload(
+                UUID.randomUUID(), List.of(lineItem), "SGD", Instant.now());
+
+        assertThatThrownBy(() -> processor.processItem(terminal, underpriced, queueRow))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("deviates more than");
+    }
+
+    @Test
+    @DisplayName("should_acceptPayload_when_priceWithinToleranceBand")
+    void should_acceptPayload_when_priceWithinBand() {
+        // Server 49.99, device 55.00 -> ~10% over, within the 20% band.
+        when(inventoryReservationService.resolveConflict(any(), any(), any(), anyInt(), any(), any()))
+                .thenReturn(ConflictResolutionResult.noConflict(locationId));
+        OfflineSaleLineItem lineItem = new OfflineSaleLineItem(
+                variantId, locationId, 1, BigDecimal.valueOf(55.00), "SGD", "P", "SKU");
+        OfflineSalePayload payload = new OfflineSalePayload(
+                UUID.randomUUID(), List.of(lineItem), "SGD", Instant.now());
+
+        SyncItemResult result = processor.processItem(terminal, payload, queueRow);
+
+        assertThat(result.success()).isTrue();
+    }
+
+    @Test
+    @DisplayName("should_rejectPayload_when_noServerPriceToReconcile")
+    void should_rejectPayload_when_noServerPrice() {
+        when(productPricingService.getCurrentPrice(variantId)).thenReturn(java.util.Optional.empty());
+        OfflineSaleLineItem lineItem = new OfflineSaleLineItem(
+                variantId, locationId, 1, BigDecimal.valueOf(49.99), "SGD", "P", "SKU");
+        OfflineSalePayload payload = new OfflineSalePayload(
+                UUID.randomUUID(), List.of(lineItem), "SGD", Instant.now());
+
+        assertThatThrownBy(() -> processor.processItem(terminal, payload, queueRow))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("No current server price");
+    }
+
+    @Test
+    @DisplayName("withinTolerance: boundary and null/non-positive handling")
+    void withinTolerance_boundaries() {
+        assertThat(PosSyncItemProcessor.withinTolerance(
+                BigDecimal.valueOf(120), BigDecimal.valueOf(100), 20)).isTrue();   // exactly +20%
+        assertThat(PosSyncItemProcessor.withinTolerance(
+                BigDecimal.valueOf(80), BigDecimal.valueOf(100), 20)).isTrue();    // exactly -20%
+        assertThat(PosSyncItemProcessor.withinTolerance(
+                BigDecimal.valueOf(121), BigDecimal.valueOf(100), 20)).isFalse();  // just over
+        assertThat(PosSyncItemProcessor.withinTolerance(
+                BigDecimal.TEN, BigDecimal.ZERO, 20)).isFalse();                   // no server price
+        assertThat(PosSyncItemProcessor.withinTolerance(
+                null, BigDecimal.TEN, 20)).isFalse();
     }
 
     @Test
