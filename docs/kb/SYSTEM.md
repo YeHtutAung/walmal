@@ -84,6 +84,14 @@ Endpoints intended for consumption by `walmal-admin` (or other non-walmal client
 - `SPRING_MAIL_HOST/PORT/USERNAME/PASSWORD` — SMTP (MailHog in dev)
 - `WALMAL_CORS_ALLOWED_ORIGINS` — comma-separated allowed origins
 - `WALMAL_RATE_LIMIT_AUTHENTICATED` — req/min for auth'd users (default 60)
+- `WALMAL_PAYMENT_GATEWAY` — which payment gateway to activate. **Fail-closed:
+  no default.** Unset means no gateway bean is created, so the app fails fast at
+  startup (`OrderCreationServiceImpl` has an unsatisfied `PaymentGatewayService`
+  dependency) rather than confirming orders on the always-success stub. The
+  `test` profile sets it to `stub` (local/dev/demo/E2E). A production deployment
+  needs a real gateway wired and this set to its id — **never `stub`**. (NB: real
+  server-side payment verification is not yet implemented — see the security
+  review's finding #2.)
 - `WALMAL_RATE_LIMIT_UNAUTHENTICATED` — req/min for guests (default 20)
 - `WALMAL_TRUST_PROXY` — set true when behind a reverse proxy
 

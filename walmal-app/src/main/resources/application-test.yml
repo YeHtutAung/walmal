@@ -1,4 +1,8 @@
 walmal:
+  payment:
+    # Test/dev/demo run the always-success stub gateway. Production leaves
+    # WALMAL_PAYMENT_GATEWAY unset (fail-closed) — see application.yml.
+    gateway: stub
   jwt:
     # Test-profile-only signing key. The default profile (application.yml) has
     # NO default secret and fails fast if WALMAL_JWT_SECRET is unset — so prod,

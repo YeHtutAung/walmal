@@ -76,6 +76,14 @@ walmal:
     # application-test.yml) or the environment.
     secret: ${WALMAL_JWT_SECRET:}
     access-token-expire-minutes: 15
+  payment:
+    # Which payment gateway to activate. Empty default is fail-closed: with no
+    # value, the always-success stub bean is NOT created, so the app cannot boot
+    # without a real gateway (OrderCreationServiceImpl's PaymentGatewayService
+    # dependency goes unsatisfied). The `test` profile sets this to `stub` for
+    # local dev / demo / E2E. Production sets WALMAL_PAYMENT_GATEWAY to a real
+    # gateway id once one is wired — never `stub`.
+    gateway: ${WALMAL_PAYMENT_GATEWAY:}
   cors:
     # Override with WALMAL_CORS_ALLOWED_ORIGINS=https://app.example.com in production.
     # WALMAL_TRUST_PROXY=true must also be set when a reverse proxy (Nginx/Caddy) sets X-Forwarded-For.

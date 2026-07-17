@@ -105,6 +105,27 @@ class OrderCreationServiceImplTest {
     }
 
     @Test
+    @DisplayName("should_throwBusinessRuleException_when_currencyDoesNotMatchPriceCurrency")
+    void should_throwBusinessRuleException_when_currencyDoesNotMatchPriceCurrency() {
+        when(productCatalogService.isVariantActive(variantId)).thenReturn(true);
+        when(productCatalogService.findVariantById(variantId)).thenReturn(Optional.of(
+                new VariantSummaryDto(variantId, UUID.randomUUID(), "SKU-001", "BC-001",
+                        "Test Product", "Red", "M", ProductStatus.ACTIVE)));
+        when(productPricingService.getPriceForVariant(variantId)).thenReturn(
+                new PriceDto(variantId, BigDecimal.valueOf(49.99), "USD", Instant.now()));
+
+        // Client claims MYR for a USD-priced variant — must be rejected before any
+        // order is persisted, stock reserved, or payment charged.
+        assertThatThrownBy(() -> service.createOrder(userId, items, address, "MYR"))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("does not match the price currency");
+
+        verify(orderRepository, never()).save(any());
+        verify(inventoryReservationService, never()).reserveStock(any(), any());
+        verify(paymentGatewayService, never()).charge(any(), any(), any());
+    }
+
+    @Test
     @DisplayName("should_publishOrderCreatedEvent_when_orderPersisted")
     void should_publishOrderCreatedEvent_when_orderPersisted() {
         setupHappyPath();

@@ -25,7 +25,11 @@ import io.minio.MinioClient;
     "walmal.minio.access-key=test",
     "walmal.minio.secret-key=test1234",
     "walmal.jwt.secret=integration-test-secret-key-walmal-app-minimum-256-bits",
-    "walmal.jwt.access-token-expire-minutes=15"
+    "walmal.jwt.access-token-expire-minutes=15",
+    // Fail-closed gateway: the stub bean only exists when this is set to `stub`.
+    // This full-context test runs on the default profile, so it must opt in
+    // explicitly (the running app opts in via the `test` profile).
+    "walmal.payment.gateway=stub"
 })
 class WalmalApplicationTest {
 

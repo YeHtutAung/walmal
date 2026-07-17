@@ -107,6 +107,17 @@ public class OrderCreationServiceImpl implements OrderCreationService {
             // Step 3: fetch price
             PriceDto price = productPricingService.getPriceForVariant(lineItem.variantId());
 
+            // The order currency is server-authoritative: it must match the
+            // variant's own price currency. Without this a client could send
+            // currency="MYR" for USD-priced goods and (with a real gateway) be
+            // charged 999 MYR instead of 999 USD — the backend must never trust
+            // a client-supplied currency. (Security review finding #6.)
+            if (currency == null || !currency.equalsIgnoreCase(price.currency())) {
+                throw new BusinessRuleException(
+                        "Order currency " + currency + " does not match the price currency "
+                        + price.currency() + " for variant " + lineItem.variantId());
+            }
+
             // Step 4: compute subtotal
             BigDecimal subtotal = price.amount().multiply(BigDecimal.valueOf(lineItem.quantity()));
 
