@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.stream.Collectors;
+import org.springframework.core.annotation.Order;
 
 /**
  * Maps domain exceptions to HTTP responses for the auth module's REST layer.
@@ -21,6 +22,12 @@ import java.util.stream.Collectors;
  * </ul>
  */
 @RestControllerAdvice(basePackages = "com.walmal.auth.api")
+// Module advice must outrank GlobalExceptionHandler\'s catch-all. Unannotated
+// advice defaults to LOWEST_PRECEDENCE — the same as Global\'s explicit @Order —
+// so the tie was broken by bean registration order and a module 4xx could
+// nondeterministically become a global 500 (found via the webhook 400 path;
+// pinned by ExceptionHandlerPrecedenceTest).
+@Order(0)
 public class AuthExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)

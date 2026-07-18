@@ -56,7 +56,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         return path.startsWith("/actuator/")
                 || path.startsWith("/v3/api-docs")
-                || path.startsWith("/swagger-ui");
+                || path.startsWith("/swagger-ui")
+                // Stripe webhook: Stripe retries automatically on any non-2xx response
+                // (including 429), and its high-volume test/live traffic all arrives
+                // from Stripe's own IPs behind no per-customer identity this filter
+                // could key on anyway. The Stripe-Signature check inside
+                // PaymentWebhookService is the real gate against abuse here, so this
+                // endpoint is exempted rather than rate-limited.
+                || path.equals("/api/v1/payment/webhook");
     }
 
     @Override

@@ -3,6 +3,13 @@ walmal:
     # Test/dev/demo run the always-success stub gateway. Production leaves
     # WALMAL_PAYMENT_GATEWAY unset (fail-closed) — see application.yml.
     gateway: stub
+    stripe:
+      # Throwaway test-profile secret for the Stripe webhook signature verifier
+      # (StripeWebhookVerifierImpl is registered unconditionally, independent of
+      # `gateway` above — see application.yml). Overridable via env
+      # STRIPE_WEBHOOK_SECRET for live/manual testing against a real signed
+      # payload without editing this file.
+      webhook-secret: ${STRIPE_WEBHOOK_SECRET:walmal-test-profile-webhook-secret-not-for-production}
   jwt:
     # Test-profile-only signing key. The default profile (application.yml) has
     # NO default secret and fails fast if WALMAL_JWT_SECRET is unset — so prod,

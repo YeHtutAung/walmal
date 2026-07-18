@@ -29,7 +29,13 @@ import io.minio.MinioClient;
     // Fail-closed gateway: the stub bean only exists when this is set to `stub`.
     // This full-context test runs on the default profile, so it must opt in
     // explicitly (the running app opts in via the `test` profile).
-    "walmal.payment.gateway=stub"
+    "walmal.payment.gateway=stub",
+    // StripeWebhookVerifierImpl is registered unconditionally (not gated on the
+    // gateway property above) and fails fast at construction if this is blank —
+    // this full-context test runs on the default profile, which has no default
+    // (see application.yml), so it must supply one explicitly, same as the JWT
+    // secret and gateway properties above.
+    "walmal.payment.stripe.webhook-secret=integration-test-webhook-secret"
 })
 class WalmalApplicationTest {
 

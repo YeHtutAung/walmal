@@ -48,6 +48,16 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     Optional<String> findGuestEmailByOrderId(@Param("orderId") UUID orderId);
 
     /**
+     * Resolves a Stripe webhook's payment intent id to the order it belongs
+     * to, for {@code PaymentWebhookServiceImpl}'s reconciliation lookup.
+     * {@code payment_reference} is not database-unique (it is only ever set
+     * once, at {@code confirm()} time, from a client-supplied PaymentIntent
+     * id) — {@code findFirst} makes the "at most one match expected" behavior
+     * explicit rather than throwing on an unexpected duplicate.
+     */
+    Optional<Order> findFirstByPaymentReference(String paymentReference);
+
+    /**
      * Projects raw order rows for the admin daily-summary dashboard. Feeds
      * {@code OrderAdminServiceImpl.buildDailySummary}, which buckets these rows
      * into a zero-filled 30-day window.

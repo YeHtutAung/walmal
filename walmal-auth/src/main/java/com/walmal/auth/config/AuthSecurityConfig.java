@@ -48,7 +48,11 @@ public class AuthSecurityConfig {
             "/api/v1/auth/register",
             "/api/v1/auth/refresh",
             // Guest and authenticated order creation (principal is null for guests)
-            "/api/v1/orders"
+            "/api/v1/orders",
+            // Stripe webhook receiver — the Stripe-Signature header IS the auth for
+            // this request (verified inside PaymentWebhookService); there is no JWT
+            // to check because Stripe's servers never carry one.
+            "/api/v1/payment/webhook"
     };
 
     private static final String[] PUBLIC_GET_PATHS = {

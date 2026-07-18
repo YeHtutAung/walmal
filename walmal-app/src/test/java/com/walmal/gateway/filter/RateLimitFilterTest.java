@@ -199,4 +199,12 @@ class RateLimitFilterTest {
         MockHttpServletRequest apiRequest = new MockHttpServletRequest("GET", "/api/v1/products");
         assertThat(filter.shouldNotFilter(apiRequest)).isFalse();
     }
+
+    @Test
+    void should_excludeStripeWebhookPath_when_shouldNotFilterCalled() {
+        // Stripe retries on any non-2xx (including 429) — the endpoint must never be
+        // rate-limited, and its own signature check is the real gate against abuse.
+        MockHttpServletRequest webhookRequest = new MockHttpServletRequest("POST", "/api/v1/payment/webhook");
+        assertThat(filter.shouldNotFilter(webhookRequest)).isTrue();
+    }
 }

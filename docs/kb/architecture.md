@@ -108,7 +108,31 @@ Backup: `deploy/backup.sh` (`pg_dump -Fc` + a tar of the MinIO data volume via
 from the pre-existing `scripts/backup-db.sh`, which targets a bare-host
 Postgres instance outside compose.
 
-## Flyway Migration Map (V1–V17)
+## Stripe Webhook (2026-07-19)
+
+`POST /api/v1/payment/webhook` — a **reconciliation log, not an authorization
+step**: the synchronous server-side `PaymentIntent.retrieve` at order creation
+remains the real payment verification; the webhook records Stripe's view of
+`payment_intent.succeeded/.payment_failed` into `payment_webhook_events` (V18)
+so mismatches (`UNMATCHED` rows) can be investigated. Module layout mirrors the
+gateway pattern: interface `PaymentWebhookVerifier` in **walmal-common**, impl
+`StripeWebhookVerifierImpl` (stripe-java `Webhook.constructEvent`) in
+**walmal-infrastructure**, controller/service/store in **walmal-order** (the
+webhook reconciles order payments; walmal-order never depends on
+walmal-infrastructure). Intent id extracted from the event's raw JSON — the
+typed stripe-java deserializer returns empty on any API-version mismatch.
+
+## Exception-Handler Precedence (fixed 2026-07-19)
+
+Every module `@RestControllerAdvice` now carries `@Order(0)`. Unannotated
+advice defaults to `LOWEST_PRECEDENCE` — the same as `GlobalExceptionHandler`'s
+explicit annotation — so module-vs-global was a TIE broken by bean registration
+order, and a module-specific 4xx could nondeterministically surface as the
+global catch-all's 500 (found live on the webhook's 400 path). Pinned by
+`ExceptionHandlerPrecedenceTest` (walmal-app), which deliberately registers the
+global handler FIRST. New module advice classes must include `@Order(0)`.
+
+## Flyway Migration Map (V1–V18)
 
 | Version | Description |
 |---------|-------------|
@@ -129,3 +153,4 @@ Postgres instance outside compose.
 | V15 | common — create `outbox_events` table |
 | V16 | pos — add `local_id` idempotency column to `pos_sync_queue` |
 | V17 | product — reseed dev catalog in place as "Walmal Sport" (same UUIDs/prices; 4-category taxonomy; 5 renamed + 10 new products, 15 total) — see `docs/kb/testing.md` "Seed Catalog" |
+| V18 | order — create `payment_webhook_events` (Stripe webhook reconciliation log; `event_id` unique for idempotency) |
