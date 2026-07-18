@@ -199,7 +199,10 @@ services:
       minio:
         condition: service_healthy
       mailhog:
-        condition: service_healthy
+        # service_started, not service_healthy: mailhog is a demo email
+        # sink, not a hard dependency — a broken sink must never block the
+        # API's boot (mail health indicator is disabled in application.yml).
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/actuator/health || exit 1"]
       interval: 30s

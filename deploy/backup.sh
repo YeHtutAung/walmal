@@ -69,8 +69,17 @@ echo "[$(date -Iseconds)] Archiving MinIO data volume..."
 # lowercased directory `docker compose` was run from, non-alphanumerics
 # stripped) — override MINIO_VOLUME explicitly if COMPOSE_PROJECT_NAME was
 # set to something else when the stack was brought up.
-DEFAULT_PROJECT_NAME="$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9' '-')"
+# printf (not a bare pipe from basename) so basename's trailing newline never
+# reaches `tr -c`, which would convert it into a stray trailing '-'.
+DEFAULT_PROJECT_NAME="$(printf '%s' "$(basename "$(pwd)")" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9' '-')"
 MINIO_VOLUME="${MINIO_VOLUME:-${COMPOSE_PROJECT_NAME:-${DEFAULT_PROJECT_NAME}}_walmal-minio-data}"
+
+# Guard: `docker run -v` silently AUTO-CREATES a missing named volume, so a
+# wrong name would tar a fresh empty volume and report success. Abort instead.
+docker volume inspect "${MINIO_VOLUME}" >/dev/null 2>&1 || {
+  echo "[$(date -Iseconds)] ERROR: docker volume '${MINIO_VOLUME}' not found — set MINIO_VOLUME explicitly." >&2
+  exit 1
+}
 docker run --rm \
   -v "${MINIO_VOLUME}:/data:ro" \
   -v "${TARGET_DIR}:/backup" \
