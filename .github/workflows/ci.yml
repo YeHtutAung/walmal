@@ -207,13 +207,19 @@ jobs:
 
   # ─────────────────────────────────────────────
   # Job 4: Deploy to Staging
-  # Only runs on push to main
+  # Only runs on push to main, and only when deployment is enabled.
+  # No staging environment exists yet — the DEPLOY_ENABLED repo variable
+  # gates this job (jobs cannot read secrets in `if:`). Skipping it
+  # cascades through the needs-chain (smoke-staging → deploy-prod →
+  # smoke-prod all show as skipped), so pushes go green on test/build/scan.
+  # To activate: set repo variable DEPLOY_ENABLED=true + the STAGING_*
+  # secrets. Until then the chain stays here as the documented CD design.
   # ─────────────────────────────────────────────
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
     needs: [ build-and-push, security-scan ]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.DEPLOY_ENABLED == 'true'
     environment: staging
 
     steps:
