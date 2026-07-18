@@ -126,6 +126,35 @@ class StripeWebhookVerifierImplTest {
                 .isThrownBy(() -> new StripeWebhookVerifierImpl(null));
     }
 
+    @Test
+    @DisplayName("should_throwWebhookVerificationException_when_bodyIsNotJson_even_with_wellFormedSignatureHeader")
+    void should_reject_when_bodyIsNotJson() {
+        // constructEvent deserializes BEFORE verifying the signature, so a
+        // garbage body throws an unchecked GSON exception, not a
+        // SignatureVerificationException. This pins that the verifier maps it
+        // to the 400 path instead of letting it escape as an unauthenticated,
+        // rate-limit-exempt 500 (free error-log flooding).
+        String garbage = "this is not json";
+        String signatureHeader = sign(garbage, SECRET);
+
+        assertThatThrownBy(() -> verifier.verify(garbage, signatureHeader))
+                .isInstanceOf(WebhookVerificationException.class);
+    }
+
+    @Test
+    @DisplayName("should_rejectStaleTimestamp_beyondDefaultReplayToleranceWindow")
+    void should_reject_when_timestampStale() {
+        // Stripe's SDK enforces a 300s default replay tolerance. Pin it so a
+        // future refactor cannot silently pass tolerance=0 (disabled).
+        String payload = paymentIntentSucceededPayload("evt_stale_1", "pi_stale_1");
+        long staleTs = Instant.now().minusSeconds(400).getEpochSecond();
+        String signatureHeader = "t=" + staleTs + ",v1="
+                + hmacSha256Hex(SECRET, staleTs + "." + payload);
+
+        assertThatThrownBy(() -> verifier.verify(payload, signatureHeader))
+                .isInstanceOf(WebhookVerificationException.class);
+    }
+
     // ── Test signing helper — mirrors Stripe's Webhook signing scheme ────────
 
     private static String paymentIntentSucceededPayload(String eventId, String paymentIntentId) {

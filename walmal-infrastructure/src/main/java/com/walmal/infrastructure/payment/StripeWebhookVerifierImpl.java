@@ -55,6 +55,16 @@ public class StripeWebhookVerifierImpl implements PaymentWebhookVerifier {
         } catch (SignatureVerificationException e) {
             log.warn("Stripe webhook signature verification failed: {}", e.getMessage());
             throw new WebhookVerificationException("Invalid Stripe webhook signature", e);
+        } catch (RuntimeException e) {
+            // constructEvent deserializes the payload BEFORE verifying the
+            // signature (confirmed against stripe-java 28.2 bytecode), so a
+            // garbage non-JSON body throws GSON's unchecked JsonSyntaxException.
+            // Without this catch that escaped to the global 500 handler on an
+            // unauthenticated, rate-limit-exempt path — free error-log flooding
+            // for anyone on the internet. A body Stripe could never have signed
+            // is a client error: 400.
+            log.warn("Stripe webhook payload rejected before signature check: {}", e.getMessage());
+            throw new WebhookVerificationException("Malformed Stripe webhook payload", e);
         }
 
         String paymentIntentId = extractPaymentIntentId(payload);
