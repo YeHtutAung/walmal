@@ -229,6 +229,11 @@ services:
       # NEXT_PUBLIC_* values are baked in at CI build time (see
       # walmal-store's build-and-push job) — not runtime env here.
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      # The store's /api/minio proxy route reads this at runtime (defaults
+      # to http://localhost:9000 for dev); in this stack MinIO is reachable
+      # only by service name on the backend network. Static topology fact —
+      # deliberately not a .env knob.
+      MINIO_INTERNAL_URL: http://minio:9000
     networks:
       - backend
     depends_on:
