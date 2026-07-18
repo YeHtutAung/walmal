@@ -116,3 +116,37 @@ E2E tests live in `../walmal-store/tests/e2e/`. See `../walmal-store/docs/kb/tes
 ## k6 Performance Tests
 
 Scripts live in `tests/performance/` (6 scripts: auth, checkout, inventory, pos, product, warehouse). See `docs/kb/gotchas.md` for k6 invocation notes and rate-limit overrides required for load testing.
+
+## CI/CD Pipeline (GitHub Actions, `.github/workflows/ci.yml`)
+
+Five jobs on push/PR to `main`/`develop`:
+
+1. **test** — full `./mvnw verify` against Postgres/RabbitMQ/Redis service
+   containers (247 tests).
+2. **build-and-push** (needs `test`; push only) — builds the JAR, then the
+   Docker image, pushed to GHCR (`ghcr.io/<owner>/walmal-app`), tagged
+   `sha-<commit>` always and `latest` on `main`.
+3. **security-scan** (needs `build-and-push`; push only) — Trivy scans the
+   pushed image (CRITICAL/HIGH), uploads SARIF to the GitHub Security tab;
+   non-blocking (`exit-code 0`).
+4. **deploy** ("Deploy (production)"; needs `[build-and-push, security-scan]`;
+   `environment: production`) — SSHes to the VPS (`appleboy/ssh-action`,
+   `DEPLOY_HOST`/`DEPLOY_USER`/`DEPLOY_SSH_KEY` secrets) and runs
+   `docker compose -f docker-compose.prod.yml pull app && ... up -d app`
+   in `/opt/walmal`, after a `git pull --ff-only` so compose/Caddyfile stay
+   current on the box.
+5. **smoke** (needs `deploy`; same gate) — curls
+   `https://api.${WALMAL_DOMAIN}/actuator/health` (retries ~12×10s for
+   `"status":"UP"`) and `https://shop.${WALMAL_DOMAIN}` for HTTP 200. No
+   secrets in URLs — `WALMAL_DOMAIN` is a public repo variable.
+
+**Single production deploy, no staging** (collapsed 2026-07-19 — the old
+pipeline had a 4-job staging→prod chain with manual approval between them;
+that's gone in favor of one gated deploy since there's a single VPS). See
+`docs/DEPLOYMENT.md` for the full runbook.
+
+**Deploy is skipped by default**: jobs 4–5 are gated on the repo variable
+`DEPLOY_ENABLED == 'true'` (jobs can't read secrets in `if:`, so a variable
+is the switch). Until the user provisions the VPS and sets it, pushes go
+green through job 3 and jobs 4–5 show as skipped — CI requires zero
+infrastructure to stay green.
