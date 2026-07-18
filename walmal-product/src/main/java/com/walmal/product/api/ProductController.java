@@ -17,6 +17,7 @@ import com.walmal.product.application.dto.PriceDto;
 import com.walmal.product.application.dto.ProductDetailDto;
 import com.walmal.product.application.dto.ProductSummaryDto;
 import com.walmal.product.application.dto.VariantSummaryDto;
+import com.walmal.product.domain.ProductStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -129,23 +130,27 @@ public class ProductController {
     // ── Product search endpoints ──────────────────────────────────────────────
 
     @Operation(summary = "Search products",
-            description = "Full-text search across product name, brand, SKU, or barcode (ILIKE for MVP); blank q lists all products")
+            description = "Full-text search across product name, brand, SKU, or barcode (ILIKE for MVP); blank q lists all products. "
+                    + "Optional status filter (ACTIVE|INACTIVE); absent = all statuses (the admin list depends on this).")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Paginated results returned")
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<Page<ProductSummaryDto>>> searchProducts(
             @RequestParam(required = false, defaultValue = "") String q,
+            @RequestParam(required = false) ProductStatus status,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.ok(searchService.searchProducts(q, pageable)));
+        return ResponseEntity.ok(ApiResponse.ok(searchService.searchProducts(q, status, pageable)));
     }
 
     @Operation(summary = "List products by category",
-            description = "Returns paginated products in the given category")
+            description = "Returns paginated products in the given category. "
+                    + "Optional status filter (ACTIVE|INACTIVE); absent = all statuses.")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Paginated results returned")
     @GetMapping("/categories/{categoryId}/products")
     public ResponseEntity<ApiResponse<Page<ProductSummaryDto>>> listByCategory(
             @PathVariable UUID categoryId,
+            @RequestParam(required = false) ProductStatus status,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.ok(searchService.listByCategory(categoryId, pageable)));
+        return ResponseEntity.ok(ApiResponse.ok(searchService.listByCategory(categoryId, status, pageable)));
     }
 
     // ── Product CRUD endpoints ────────────────────────────────────────────────

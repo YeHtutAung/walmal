@@ -38,6 +38,8 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -170,12 +172,49 @@ class ProductControllerTest {
                 "TestBrand", null, new BigDecimal("19.99"), "USD");
         Page<ProductSummaryDto> page = new PageImpl<>(List.of(dto));
 
-        when(searchService.searchProducts(anyString(), any(Pageable.class))).thenReturn(page);
+        when(searchService.searchProducts(anyString(), isNull(), any(Pageable.class))).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/product/search").param("q", "widget"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.content[0].name").value("Test Widget"));
+    }
+
+    @Test
+    @DisplayName("should_bindStatusParam_when_searchProductsWithStatusActive")
+    @WithMockUser(username = "customer1", roles = "CUSTOMER")
+    void should_bindStatusParam_when_searchProductsWithStatusActive() throws Exception {
+        ProductSummaryDto dto = new ProductSummaryDto(
+                UUID.randomUUID(), "Active Widget", "active-widget",
+                "TestBrand", null, new BigDecimal("9.99"), "USD");
+        when(searchService.searchProducts(anyString(), eq(com.walmal.product.domain.ProductStatus.ACTIVE),
+                any(Pageable.class))).thenReturn(new PageImpl<>(List.of(dto)));
+
+        mockMvc.perform(get("/api/v1/product/search").param("q", "widget").param("status", "ACTIVE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].name").value("Active Widget"));
+    }
+
+    @Test
+    @DisplayName("should_return400_when_searchProductsWithInvalidStatus")
+    @WithMockUser(username = "customer1", roles = "CUSTOMER")
+    void should_return400_when_searchProductsWithInvalidStatus() throws Exception {
+        mockMvc.perform(get("/api/v1/product/search").param("status", "BOGUS"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("should_bindStatusParam_when_listByCategoryWithStatusActive")
+    @WithMockUser(username = "customer1", roles = "CUSTOMER")
+    void should_bindStatusParam_when_listByCategoryWithStatusActive() throws Exception {
+        UUID categoryId = UUID.randomUUID();
+        when(searchService.listByCategory(eq(categoryId), eq(com.walmal.product.domain.ProductStatus.ACTIVE),
+                any(Pageable.class))).thenReturn(Page.empty());
+
+        mockMvc.perform(get("/api/v1/product/categories/{categoryId}/products", categoryId)
+                        .param("status", "ACTIVE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
     }
 
     // ── GET /{productId} ──────────────────────────────────────────────────────

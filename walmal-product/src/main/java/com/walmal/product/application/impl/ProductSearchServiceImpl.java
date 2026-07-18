@@ -7,6 +7,7 @@ import com.walmal.product.application.dto.CategoryTreeDto;
 import com.walmal.product.application.dto.ProductSummaryDto;
 import com.walmal.product.domain.Category;
 import com.walmal.product.domain.Product;
+import com.walmal.product.domain.ProductStatus;
 import com.walmal.product.infrastructure.CategoryRepository;
 import com.walmal.product.infrastructure.ProductImageRepository;
 import com.walmal.product.infrastructure.ProductImageStorageAdapter;
@@ -67,24 +68,31 @@ public class ProductSearchServiceImpl implements ProductSearchService {
     }
 
     @Override
-    public Page<ProductSummaryDto> searchProducts(String query, Pageable pageable) {
+    public Page<ProductSummaryDto> searchProducts(String query, ProductStatus status, Pageable pageable) {
         if (query == null || query.isBlank()) {
             // List-all path — the admin products list page depends on this exact
-            // behavior (empty q = all products). Do not add a min-length guard here.
-            return productRepository.findAll(pageable).map(this::toProductSummaryDto);
+            // behavior (empty q + no status = all products). Do not add a
+            // min-length guard here. status is the storefront's opt-in filter.
+            Page<Product> page = status == null
+                    ? productRepository.findAll(pageable)
+                    : productRepository.findByStatus(status, pageable);
+            return page.map(this::toProductSummaryDto);
         }
         // Escape LIKE wildcards so user input matches literally (the old derived
         // Containing query auto-escaped; the JPQL query declares ESCAPE '\').
         // Locale.ROOT avoids locale-sensitive folding (e.g. Turkish dotless i).
         String escaped = LikePatterns.escape(query.trim().toLowerCase(Locale.ROOT));
         String pattern = "%" + escaped + "%";
-        return productRepository.searchByNameBrandSkuOrBarcode(pattern, pageable).map(this::toProductSummaryDto);
+        return productRepository.searchByNameBrandSkuOrBarcode(pattern, status, pageable)
+                .map(this::toProductSummaryDto);
     }
 
     @Override
-    public Page<ProductSummaryDto> listByCategory(UUID categoryId, Pageable pageable) {
-        return productRepository.findByCategoryId(categoryId, pageable)
-                .map(this::toProductSummaryDto);
+    public Page<ProductSummaryDto> listByCategory(UUID categoryId, ProductStatus status, Pageable pageable) {
+        Page<Product> page = status == null
+                ? productRepository.findByCategoryId(categoryId, pageable)
+                : productRepository.findByCategoryIdAndStatus(categoryId, status, pageable);
+        return page.map(this::toProductSummaryDto);
     }
 
     @Override
