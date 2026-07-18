@@ -73,6 +73,21 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void should_return400_when_requestParamTypeMismatch() {
+        // e.g. ?status=BOGUS on an enum-typed @RequestParam — must be a 400,
+        // not fall through to the 500 catch-all (regression: Phase 1 status filter).
+        var ex = new org.springframework.web.method.annotation.MethodArgumentTypeMismatchException(
+                "BOGUS", com.walmal.product.domain.ProductStatus.class, "status",
+                mock(MethodParameter.class), new IllegalArgumentException("no enum constant"));
+
+        ResponseEntity<ApiResponse<Void>> response = handler.handleTypeMismatch(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().message()).contains("status");
+    }
+
+    @Test
     void should_return404_when_noHandlerFound() {
         ResponseEntity<ApiResponse<Void>> response =
                 handler.handleNoHandlerFound(new NoHandlerFoundException("GET", "/api/v1/nonexistent", null));

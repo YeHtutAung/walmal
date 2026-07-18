@@ -75,6 +75,16 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("Malformed request body."));
     }
 
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex) {
+        // e.g. ?status=BOGUS on an enum-typed @RequestParam — a client error,
+        // not a server fault (was falling through to the 500 catch-all).
+        logWarn(ex);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("Invalid value for parameter '" + ex.getName() + "'."));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
         logWarn(ex);
