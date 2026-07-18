@@ -29,10 +29,13 @@
 #      (Restoring into a *scratch* database first is strongly recommended
 #      before ever pointing this at the live `walmal` database — create a
 #      throwaway DB, restore into it, verify row counts, THEN restore prod.)
-#   2. MinIO data volume (stop minio first to avoid restoring under load):
+#   2. MinIO data volume (stop minio first to avoid restoring under load).
+#      NOTE: don't hardcode the volume name — it is <project>_walmal-minio-data
+#      where <project> is the compose project name (this script computes it;
+#      confirm with `docker volume ls | grep walmal-minio-data`):
 #        docker compose -f docker-compose.prod.yml stop minio
 #        docker run --rm \
-#          -v walmal_walmal-minio-data:/data \
+#          -v <project>_walmal-minio-data:/data \
 #          -v "$(pwd)/backups/<date>":/backup \
 #          alpine sh -c "rm -rf /data/* && tar -xzf /backup/minio-data.tar.gz -C /data"
 #        docker compose -f docker-compose.prod.yml start minio
@@ -76,6 +79,9 @@ MINIO_VOLUME="${MINIO_VOLUME:-${COMPOSE_PROJECT_NAME:-${DEFAULT_PROJECT_NAME}}_w
 
 # Guard: `docker run -v` silently AUTO-CREATES a missing named volume, so a
 # wrong name would tar a fresh empty volume and report success. Abort instead.
+# This is the safety net for the name derivation above — if the derivation is
+# ever wrong for a setup, the run fails loudly here rather than producing
+# empty "backups".
 docker volume inspect "${MINIO_VOLUME}" >/dev/null 2>&1 || {
   echo "[$(date -Iseconds)] ERROR: docker volume '${MINIO_VOLUME}' not found — set MINIO_VOLUME explicitly." >&2
   exit 1
@@ -92,7 +98,9 @@ fi
 echo "[$(date -Iseconds)] MinIO archive complete: $(du -h "${TARGET_DIR}/minio-data.tar.gz" | cut -f1)"
 
 # ── 7-day rotation: delete dated dirs older than RETAIN_DAYS ──────
+# -name '????-??-??' restricts deletion to this script's own date-named
+# dirs — anything else placed under BACKUP_ROOT is never touched.
 echo "[$(date -Iseconds)] Pruning backups older than ${RETAIN_DAYS} days..."
-find "${BACKUP_ROOT}" -maxdepth 1 -mindepth 1 -type d -mtime "+${RETAIN_DAYS}" -print -exec rm -rf {} \;
+find "${BACKUP_ROOT}" -maxdepth 1 -mindepth 1 -type d -name '????-??-??' -mtime "+${RETAIN_DAYS}" -print -exec rm -rf {} \;
 
 echo "[$(date -Iseconds)] Backup job finished successfully: ${TARGET_DIR}"

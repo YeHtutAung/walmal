@@ -152,28 +152,30 @@ services:
     image: ${WALMAL_IMAGE:-ghcr.io/yehtutaung/walmal/walmal-app:latest}
     restart: unless-stopped
     environment:
+      # `:?` on every cannot-run-without var: a missing value is a one-line
+      # `docker compose` error at startup, not a container crash-loop.
       SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/walmal
-      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
-      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:?see .env.production.example}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?see .env.production.example}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
-      SPRING_DATA_REDIS_PASSWORD: ${SPRING_DATA_REDIS_PASSWORD}
+      SPRING_DATA_REDIS_PASSWORD: ${SPRING_DATA_REDIS_PASSWORD:?see .env.production.example}
       SPRING_RABBITMQ_HOST: rabbitmq
-      SPRING_RABBITMQ_USERNAME: ${SPRING_RABBITMQ_USERNAME}
-      SPRING_RABBITMQ_PASSWORD: ${SPRING_RABBITMQ_PASSWORD}
+      SPRING_RABBITMQ_USERNAME: ${SPRING_RABBITMQ_USERNAME:?see .env.production.example}
+      SPRING_RABBITMQ_PASSWORD: ${SPRING_RABBITMQ_PASSWORD:?see .env.production.example}
       MINIO_URL: http://minio:9000
-      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
-      WALMAL_JWT_SECRET: ${WALMAL_JWT_SECRET}
-      WALMAL_CORS_ALLOWED_ORIGINS: ${WALMAL_CORS_ALLOWED_ORIGINS}
+      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://minio:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?see .env.production.example}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?see .env.production.example}
+      WALMAL_JWT_SECRET: ${WALMAL_JWT_SECRET:?see .env.production.example}
+      WALMAL_CORS_ALLOWED_ORIGINS: ${WALMAL_CORS_ALLOWED_ORIGINS:?see .env.production.example}
       WALMAL_TRUST_PROXY: ${WALMAL_TRUST_PROXY:-true}
       # Stripe stays in TEST mode (public demo store) — see docs/DEPLOYMENT.md.
       # Fail-closed: the gateway bean does not exist without these two set.
       WALMAL_PAYMENT_GATEWAY: stripe
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
-      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:?see .env.production.example}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:?see .env.production.example}
       # MailHog accepts neither SMTP auth nor STARTTLS — defaults below are
       # MailHog-compatible; override only if SPRING_MAIL_HOST is swapped for
       # a real SMTP provider.
@@ -189,6 +191,7 @@ services:
       JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
     networks:
       - backend
+      - egress   # outbound internet: PaymentIntent verification against api.stripe.com
     depends_on:
       postgres:
         condition: service_healthy
@@ -217,10 +220,6 @@ services:
         reservations:
           cpus: "0.5"
           memory: 512M
-      restart_policy:
-        condition: on-failure
-        delay: 10s
-        max_attempts: 3
     logging: *default-logging
 
   # ── Storefront (Next.js, CI-built) ───────────────────────────────
@@ -231,7 +230,7 @@ services:
       NODE_ENV: production
       # NEXT_PUBLIC_* values are baked in at CI build time (see
       # walmal-store's build-and-push job) — not runtime env here.
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:?see .env.production.example}
       # The store's /api/minio proxy route reads this at runtime (defaults
       # to http://localhost:9000 for dev); in this stack MinIO is reachable
       # only by service name on the backend network. Static topology fact —
@@ -239,9 +238,17 @@ services:
       MINIO_INTERNAL_URL: http://minio:9000
     networks:
       - backend
+      - egress   # outbound internet: server-side PaymentIntent creation (api.stripe.com)
     depends_on:
       app:
         condition: service_healthy
+    healthcheck:
+      # busybox wget ships in node:22-alpine; 127.0.0.1 avoids any DNS lookup.
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
     deploy:
       resources:
         limits:
@@ -273,6 +280,7 @@ services:
       - walmal-uptime-kuma-data:/app/data
     networks:
       - backend
+      - egress   # outbound internet: public-URL monitors + alert notifications
     deploy:
       resources:
         limits:
@@ -295,14 +303,23 @@ services:
       - walmal-caddy-data:/data
       - walmal-caddy-config:/config
     environment:
-      WALMAL_DOMAIN: ${WALMAL_DOMAIN}
-      MAILHOG_BASIC_AUTH: ${MAILHOG_BASIC_AUTH}
+      WALMAL_DOMAIN: ${WALMAL_DOMAIN:?see .env.production.example}
+      ACME_EMAIL: ${ACME_EMAIL:?see .env.production.example}
+      MAILHOG_BASIC_AUTH: ${MAILHOG_BASIC_AUTH:?see .env.production.example}
     networks:
       - backend
       - frontend
-    depends_on:
-      app:
-        condition: service_healthy
+    # Deliberately NO depends_on: the edge must come up (and stay up) even
+    # when upstreams are down — that is exactly when the status page and
+    # Caddy's own 502s for dead upstreams matter. Caddy serves 502 for an
+    # unreachable upstream by design; it never needs a healthy app to start.
+    healthcheck:
+      # Process liveness only — simple and reliable. An HTTP probe against
+      # :80 would just hit the auto-HTTPS redirect and add failure modes.
+      test: ["CMD", "caddy", "version"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
     logging: *default-logging
 
 volumes:
@@ -321,11 +338,20 @@ volumes:
   walmal-caddy-config:
     driver: local
 
+# Network design:
+#   backend  — internal data plane (internal: true, no internet either way).
+#              Postgres/Redis/RabbitMQ/MinIO/MailHog live ONLY here.
+#   egress   — outbound-only internet access for services that must call out
+#              (app + store reach api.stripe.com; uptime-kuma reaches its
+#              public-URL monitors and notification providers). Not internal,
+#              but no service on it publishes a port, so it adds no inbound
+#              exposure — all inbound traffic still enters through Caddy.
+#   frontend — Caddy's public edge (published 80/443 + ACME).
 networks:
   backend:
     driver: bridge
     internal: true   # no direct internet access
+  egress:
+    driver: bridge
   frontend:
-    driver: bridge   # only Caddy joins this (ACME + published 80/443); every
-                      # other service is backend-only per the topology in
-                      # docs/superpowers/specs/2026-07-19-production-deployment-design.md
+    driver: bridge   # only Caddy joins this (ACME + published 80/443)

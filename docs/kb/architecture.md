@@ -72,12 +72,26 @@ Performance note: both hand-written queries defeat indexes by construction (per-
 ## Production Deployment Topology (`docker-compose.prod.yml`)
 
 One VPS, one compose file, Caddy as the sole published-port service
-(`:80`/`:443`, automatic Let's Encrypt TLS via `deploy/Caddyfile`) —
-**Caddy replaces the earlier `nginx` service** that this file used to carry
-(nginx's manual TLS/cert volumes are gone; Caddy provisions and renews certs
-itself). Every other service sits on the `backend` network only
-(`internal: true` — no direct internet egress); Caddy alone also joins
-`frontend` (needed for ACME + the two published ports).
+(`:80`/`:443`, automatic Let's Encrypt TLS via `deploy/Caddyfile`;
+`ACME_EMAIL` env for ACME registration) — **Caddy replaces the earlier
+`nginx` service** that this file used to carry (nginx's manual TLS/cert
+volumes are gone; Caddy provisions and renews certs itself).
+
+Three networks:
+- `backend` (`internal: true`) — data plane; Postgres/Redis/RabbitMQ/MinIO/
+  MailHog live ONLY here, no internet access either way.
+- `egress` (non-internal; no service on it publishes a port, so it adds no
+  inbound exposure) — outbound internet for services that must call out:
+  `app` + `store` reach `api.stripe.com` (server-side PaymentIntent
+  verification/creation would otherwise fail on every order), `uptime-kuma`
+  reaches its public-URL monitors + notification providers.
+- `frontend` — Caddy's public edge (published 80/443 + ACME).
+
+Caddy deliberately has **no `depends_on`**: the edge must come up and stay
+up even when upstreams are down — exactly when the status page matters;
+Caddy serves 502 for dead upstreams by design. All cannot-run-without env
+vars use compose `:?` interpolation, so a missing var is a one-line
+`docker compose` error instead of a container crash-loop.
 
 | Service | Image | Notes |
 |---------|-------|-------|

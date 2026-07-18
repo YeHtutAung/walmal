@@ -134,6 +134,8 @@ Endpoints intended for consumption by `walmal-admin` (or other non-walmal client
 ### Deployment (`docker-compose.prod.yml` / `deploy/Caddyfile`, not Spring properties)
 - `WALMAL_DOMAIN` — bare apex domain; Caddy builds
   `shop./admin./api./status./mail.{$WALMAL_DOMAIN}` from it.
+- `ACME_EMAIL` — Let's Encrypt registration/expiry-notice address (Caddy
+  global `email` option).
 - `MAILHOG_BASIC_AUTH` — one "username bcrypt-hash" line (from
   `caddy hash-password`) gating the `mail.` subdomain.
 - `WALMAL_IMAGE` / `WALMAL_STORE_IMAGE` / `WALMAL_ADMIN_IMAGE` — optional GHCR
