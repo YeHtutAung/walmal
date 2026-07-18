@@ -125,6 +125,28 @@ services:
           memory: 256M
     logging: *default-logging
 
+  # ── MailHog (demo/test-mode email sink) ──────────────────────────
+  # Test mode means no real customer email is ever sent; MailHog lets the
+  # demo show "the emails the shop sends" via the mail. subdomain (Caddy
+  # basic-auth protected — see deploy/Caddyfile).
+  mailhog:
+    image: mailhog/mailhog:latest
+    restart: unless-stopped
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8025 2>/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+    logging: *default-logging
+
   # ── Walmal Application ──────────────────────────────────────────
   app:
     image: ${WALMAL_IMAGE:-ghcr.io/yehtutaung/walmal/walmal-app:latest}
@@ -146,18 +168,27 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       WALMAL_JWT_SECRET: ${WALMAL_JWT_SECRET}
       WALMAL_CORS_ALLOWED_ORIGINS: ${WALMAL_CORS_ALLOWED_ORIGINS}
-      WALMAL_TRUST_PROXY: ${WALMAL_TRUST_PROXY:-false}
-      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST}
-      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-587}
+      WALMAL_TRUST_PROXY: ${WALMAL_TRUST_PROXY:-true}
+      # Stripe stays in TEST mode (public demo store) — see docs/DEPLOYMENT.md.
+      # Fail-closed: the gateway bean does not exist without these two set.
+      WALMAL_PAYMENT_GATEWAY: stripe
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      # MailHog accepts neither SMTP auth nor STARTTLS — defaults below are
+      # MailHog-compatible; override only if SPRING_MAIL_HOST is swapped for
+      # a real SMTP provider.
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-mailhog}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-1025}
       SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME}
       SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD}
+      SPRING_MAIL_SMTP_AUTH: ${SPRING_MAIL_SMTP_AUTH:-false}
+      SPRING_MAIL_SMTP_STARTTLS_ENABLE: ${SPRING_MAIL_SMTP_STARTTLS_ENABLE:-false}
       WALMAL_RATE_LIMIT_AUTHENTICATED: ${WALMAL_RATE_LIMIT_AUTHENTICATED:-60}
       WALMAL_RATE_LIMIT_UNAUTHENTICATED: ${WALMAL_RATE_LIMIT_UNAUTHENTICATED:-20}
       # JVM tuning
       JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
     networks:
       - backend
-      - frontend
     depends_on:
       postgres:
         condition: service_healthy
@@ -166,6 +197,8 @@ services:
       rabbitmq:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      mailhog:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/actuator/health || exit 1"]
@@ -187,22 +220,17 @@ services:
         max_attempts: 3
     logging: *default-logging
 
-  # ── Nginx reverse proxy ─────────────────────────────────────────
-  # Handles SSL termination, rate limiting at the edge, and
-  # proxies to the Spring Boot app on the internal network.
-  # Replace nginx.conf with your actual config; see docs/DEPLOYMENT.md.
-  nginx:
-    image: nginx:alpine
+  # ── Storefront (Next.js, CI-built) ───────────────────────────────
+  store:
+    image: ${WALMAL_STORE_IMAGE:-ghcr.io/yehtutaung/walmal-store:latest}
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-      - walmal-nginx-logs:/var/log/nginx
+    environment:
+      NODE_ENV: production
+      # NEXT_PUBLIC_* values are baked in at CI build time (see
+      # walmal-store's build-and-push job) — not runtime env here.
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
     networks:
-      - frontend
+      - backend
     depends_on:
       app:
         condition: service_healthy
@@ -210,7 +238,63 @@ services:
       resources:
         limits:
           cpus: "0.5"
+          memory: 512M
+    logging: *default-logging
+
+  # ── Admin SPA (nginx, CI-built) ───────────────────────────────────
+  admin:
+    image: ${WALMAL_ADMIN_IMAGE:-ghcr.io/yehtutaung/walmal-admin:latest}
+    restart: unless-stopped
+    networks:
+      - backend
+    depends_on:
+      app:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
           memory: 128M
+    logging: *default-logging
+
+  # ── Uptime Kuma (status page + alerting) ─────────────────────────
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    restart: unless-stopped
+    volumes:
+      - walmal-uptime-kuma-data:/app/data
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+    logging: *default-logging
+
+  # ── Caddy — reverse proxy + automatic TLS ────────────────────────
+  # The ONLY service publishing host ports. Terminates TLS (Let's
+  # Encrypt via ACME) for every subdomain and reverse-proxies to the
+  # internal-only "backend" network; see deploy/Caddyfile.
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - walmal-caddy-data:/data
+      - walmal-caddy-config:/config
+    environment:
+      WALMAL_DOMAIN: ${WALMAL_DOMAIN}
+      MAILHOG_BASIC_AUTH: ${MAILHOG_BASIC_AUTH}
+    networks:
+      - backend
+      - frontend
+    depends_on:
+      app:
+        condition: service_healthy
     logging: *default-logging
 
 volumes:
@@ -222,7 +306,11 @@ volumes:
     driver: local
   walmal-minio-data:
     driver: local
-  walmal-nginx-logs:
+  walmal-uptime-kuma-data:
+    driver: local
+  walmal-caddy-data:
+    driver: local
+  walmal-caddy-config:
     driver: local
 
 networks:
@@ -230,4 +318,6 @@ networks:
     driver: bridge
     internal: true   # no direct internet access
   frontend:
-    driver: bridge   # Nginx is on both; app is backend-only
+    driver: bridge   # only Caddy joins this (ACME + published 80/443); every
+                      # other service is backend-only per the topology in
+                      # docs/superpowers/specs/2026-07-19-production-deployment-design.md

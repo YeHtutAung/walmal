@@ -124,6 +124,20 @@ Endpoints intended for consumption by `walmal-admin` (or other non-walmal client
   uses to create the intent — store creates, backend verifies.
 - `WALMAL_RATE_LIMIT_UNAUTHENTICATED` — req/min for guests (default 20)
 - `WALMAL_TRUST_PROXY` — set true when behind a reverse proxy
+- `SPRING_MAIL_SMTP_AUTH` / `SPRING_MAIL_SMTP_STARTTLS_ENABLE` — mail auth/TLS
+  flags (`application-prod.yml`), both default `false`. The prod profile used
+  to hardcode `true`/`true`; MailHog (the prod-compose email sink — see
+  "Production Deployment Topology" below) supports neither, so these are now
+  env-driven with MailHog-compatible defaults. Set both `true` only if
+  `SPRING_MAIL_HOST` is swapped for a real SMTP provider.
+
+### Deployment (`docker-compose.prod.yml` / `deploy/Caddyfile`, not Spring properties)
+- `WALMAL_DOMAIN` — bare apex domain; Caddy builds
+  `shop./admin./api./status./mail.{$WALMAL_DOMAIN}` from it.
+- `MAILHOG_BASIC_AUTH` — one "username bcrypt-hash" line (from
+  `caddy hash-password`) gating the `mail.` subdomain.
+- `WALMAL_IMAGE` / `WALMAL_STORE_IMAGE` / `WALMAL_ADMIN_IMAGE` — optional GHCR
+  image overrides (default `:latest`; set to a `sha-*` tag to pin/rollback).
 
 ### walmal-store (Next.js)
 - `NEXT_PUBLIC_API_URL` — backend base URL (e.g. `http://localhost:8080/api/v1`)

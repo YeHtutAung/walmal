@@ -69,6 +69,31 @@ The admin "global search" feature is served by **three per-module search endpoin
 
 Performance note: both hand-written queries defeat indexes by construction (per-row UUID-to-string cast, leading `%` wildcard). This is an accepted sequential-scan tradeoff at admin search volumes — the same MVP tradeoff as product search's ILIKE.
 
+## Production Deployment Topology (`docker-compose.prod.yml`)
+
+One VPS, one compose file, Caddy as the sole published-port service
+(`:80`/`:443`, automatic Let's Encrypt TLS via `deploy/Caddyfile`) —
+**Caddy replaces the earlier `nginx` service** that this file used to carry
+(nginx's manual TLS/cert volumes are gone; Caddy provisions and renews certs
+itself). Every other service sits on the `backend` network only
+(`internal: true` — no direct internet egress); Caddy alone also joins
+`frontend` (needed for ACME + the two published ports).
+
+| Service | Image | Notes |
+|---------|-------|-------|
+| `caddy` | `caddy:2` | reverse-proxies `shop./admin./api./status./mail.{$WALMAL_DOMAIN}` to the services below; apex redirects to `shop.` |
+| `app` | GHCR-built (this repo) | `WALMAL_PAYMENT_GATEWAY=stripe` (TEST mode) + `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` now required in prod |
+| `store` | `ghcr.io/yehtutaung/walmal-store` | Next.js storefront; runtime `STRIPE_SECRET_KEY` (same value as `app`'s) for server-side PaymentIntent creation |
+| `admin` | `ghcr.io/yehtutaung/walmal-admin` | static nginx SPA, no runtime env |
+| `mailhog` | stock | **new in this stack** (the dev `docker-compose.yml` mailhog already existed; the prod file previously had no email sink at all) — demo/test-mode email sink, UI at `mail.` behind Caddy basic-auth |
+| `uptime-kuma` | stock | status page + alerting at `status.`, own volume |
+| `postgres`/`redis`/`rabbitmq`/`minio` | stock | unchanged, backend-only |
+
+Backup: `deploy/backup.sh` (`pg_dump -Fc` + a tar of the MinIO data volume via
+`docker compose exec`/a throwaway alpine container, 7-day rotation) — distinct
+from the pre-existing `scripts/backup-db.sh`, which targets a bare-host
+Postgres instance outside compose.
+
 ## Flyway Migration Map (V1–V17)
 
 | Version | Description |

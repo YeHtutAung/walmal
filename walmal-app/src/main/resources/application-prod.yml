@@ -16,14 +16,25 @@ spring:
     properties:
       mail:
         smtp:
-          auth: true
+          # MailHog (the prod-compose demo email sink) supports neither SMTP
+          # auth nor STARTTLS — defaults are MailHog-compatible. Set both to
+          # true via env if SPRING_MAIL_HOST is later swapped for a real
+          # SMTP provider.
+          auth: ${SPRING_MAIL_SMTP_AUTH:false}
           starttls:
-            enable: true
+            enable: ${SPRING_MAIL_SMTP_STARTTLS_ENABLE:false}
 
 walmal:
   cors:
     # Required: set to your production frontend URL, e.g. https://app.walmal.com
     allowed-origins: "${WALMAL_CORS_ALLOWED_ORIGINS}"
+
+# Profile marker on the public /actuator/info endpoint, mirroring the test
+# profile's marker (application-test.yml) — lets ops/monitoring confirm a
+# running container actually booted with -Dspring.profiles.active=prod.
+info:
+  walmal:
+    profile: prod
 
 management:
   endpoints:
