@@ -1,172 +1,189 @@
-# Deployment Guide
+# Deployment Guide — Walmal Production (single VPS)
 
-This document covers deploying the Walmal Spring Boot backend to staging and production.
+The whole system (Spring backend, storefront, admin, data services, TLS,
+monitoring) runs on one VPS from `docker-compose.prod.yml` behind Caddy.
+Stripe runs in **TEST mode** by design — this is a public demo store; the
+storefront shows a banner telling visitors to use card `4242 4242 4242 4242`.
 
-## Prerequisites
-
-- Docker and Docker Compose v2 installed on the target server
-- A PostgreSQL 15 database (managed by `docker-compose.prod.yml` or external)
-- SSL certificates for the API domain
-- All secrets from `.env.example` filled in and stored as GitHub Actions secrets
-
----
-
-## Environment Variables
-
-Copy `.env.example` to `.env` on the server and fill in all values:
-
-```bash
-cp .env.example .env
-# Edit .env — never commit this file
-```
-
-Required secrets to add as GitHub Actions secrets (repo → Settings → Secrets and variables → Actions):
-
-| Secret | Used in |
-|--------|---------|
-| `WALMAL_JWT_SECRET_TEST` | CI test job |
-| `STAGING_HOST` | deploy-staging job |
-| `STAGING_SSH_KEY` | deploy-staging job |
-| `STAGING_USER` | deploy-staging job |
-| `STAGING_API_URL` | smoke-test-staging job |
-| `PROD_HOST` | deploy-prod job |
-| `PROD_SSH_KEY` | deploy-prod job |
-| `PROD_USER` | deploy-prod job |
-| `PROD_API_URL` | smoke-test-prod job |
+Two tracks below: **Track 1** is everything only a human can do (accounts,
+domain, secrets) — roughly an afternoon, once. **Track 2** is what runs
+automatically on every push after that.
 
 ---
 
-## Production Deployment (Automated via CI)
+## Track 1 — One-time provisioning (you)
 
-On every push to `main`:
+### 1. Buy a domain
 
-1. Tests run (`test` job)
-2. Docker image is built and pushed to GHCR (`build-and-push` job)
-3. Trivy vulnerability scan runs (`security-scan` job)
-4. Automatic deploy to staging (`deploy-staging` job)
-5. Smoke tests verify staging (`smoke-test-staging` job)
-6. **Manual approval gate** — a reviewer must approve in GitHub UI (`deploy-prod` job environment: `production`)
-7. Automatic deploy to production
-8. Smoke tests verify production (`smoke-test-prod` job)
+Any registrar (~$10/yr). Everywhere below, `WALMAL_DOMAIN` means the bare
+domain (e.g. `example.com`).
 
-To configure the manual approval gate:
-- Go to repo → Settings → Environments → `production`
-- Enable "Required reviewers" and add the appropriate users/teams
+### 2. Create the VPS
 
----
+- Ubuntu 24.04 LTS, 4–8 GB RAM (Hetzner CPX21/CX32 class or equivalent),
+  ≥40 GB disk.
+- Add YOUR SSH public key at creation; password auth off.
+- Generate a **separate deploy keypair** for CI:
+  `ssh-keygen -t ed25519 -f walmal-deploy -C walmal-ci` — the public half
+  goes in the VPS `~/.ssh/authorized_keys`, the private half becomes the
+  `DEPLOY_SSH_KEY` GitHub secret (step 6).
 
-## Manual Deployment (Fallback)
+### 3. Point DNS (5 A-records + apex → the VPS IP)
 
-Use this procedure if CI is unavailable or you need an emergency deploy.
+| Record | Serves |
+|---|---|
+| `shop.WALMAL_DOMAIN` | storefront (apex also redirects here) |
+| `admin.WALMAL_DOMAIN` | ops admin |
+| `api.WALMAL_DOMAIN` | Spring API |
+| `status.WALMAL_DOMAIN` | Uptime Kuma status page |
+| `mail.WALMAL_DOMAIN` | MailHog UI (basic-auth) |
+| `WALMAL_DOMAIN` (apex) | redirect → shop. |
 
-### 1. Build and push the image
+Wait for propagation before first boot — Caddy needs resolvable names to
+obtain Let's Encrypt certificates (no manual SSL setup: Caddy handles
+issuance and renewal).
 
-```bash
-# On your local machine or build server
-cd /path/to/walmal
-./mvnw package -DskipTests --batch-mode --no-transfer-progress
-
-docker build -t ghcr.io/<org>/walmal/walmal-app:manual-$(date +%Y%m%d) .
-docker push ghcr.io/<org>/walmal/walmal-app:manual-$(date +%Y%m%d)
-```
-
-### 2. Deploy to the server
+### 4. Harden + prepare the VPS
 
 ```bash
-# SSH to the target server
-ssh user@your-server
+# as root on the VPS
+apt update && apt -y upgrade
+apt -y install docker.io docker-compose-v2 ufw fail2ban unattended-upgrades
+ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw --force enable
+systemctl enable --now fail2ban
+dpkg-reconfigure -plow unattended-upgrades   # accept
 
-cd /opt/walmal
-
-# Pull the new image
-export WALMAL_IMAGE=ghcr.io/<org>/walmal/walmal-app:manual-YYYYMMDD
-docker compose -f docker-compose.prod.yml pull app
-
-# Rolling restart (zero-downtime if you have a load balancer)
-docker compose -f docker-compose.prod.yml up -d app
-
-# Verify health
-curl -sf http://localhost:8080/actuator/health | python3 -m json.tool
+mkdir -p /opt/walmal && cd /opt/walmal
+git clone https://github.com/YeHtutAung/walmal.git .
 ```
 
-### 3. Run smoke tests
+### 5. Server environment file
 
 ```bash
-./scripts/smoke-test.sh https://api.walmal.com
+cp .env.production.example .env
+# fill EVERY value — the compose file fails fast on missing required vars
 ```
 
----
+Notes while filling it in:
+- `MAILHOG_BASIC_AUTH`: generate the bcrypt hash on the VPS with
+  `docker run --rm caddy:2 caddy hash-password --plaintext 'your-password'`.
+- `STRIPE_SECRET_KEY`: the **test-mode** `sk_test_…` key.
+- `STRIPE_WEBHOOK_SECRET`: created in step 7 — come back and fill it in.
+- `ACME_EMAIL`: a real mailbox; Let's Encrypt sends expiry warnings there.
 
-## SSL Certificate Setup
+### 6. GitHub secrets + variables
 
-Obtain certificates with Certbot and place them where Nginx expects them:
+Secrets (Settings → Secrets and variables → Actions, in each repo that
+deploys — walmal, walmal-store, walmal-admin):
 
-```bash
-# On the server — run once before starting Nginx
-certbot certonly --standalone -d api.walmal.com
+| Secret | Value |
+|---|---|
+| `DEPLOY_HOST` | VPS IP or hostname |
+| `DEPLOY_USER` | the SSH user (e.g. a dedicated `deploy` user) |
+| `DEPLOY_SSH_KEY` | the private half of the deploy keypair (step 2) |
+| `WALMAL_JWT_SECRET_TEST` | walmal only — CI test job (pre-existing) |
 
-mkdir -p /opt/walmal/nginx/ssl
-cp /etc/letsencrypt/live/api.walmal.com/fullchain.pem /opt/walmal/nginx/ssl/
-cp /etc/letsencrypt/live/api.walmal.com/privkey.pem   /opt/walmal/nginx/ssl/
-chmod 600 /opt/walmal/nginx/ssl/privkey.pem
+The old `STAGING_*` / `PROD_*` secret names are retired — remove them.
 
-# Auto-renew (add to cron or systemd timer)
-certbot renew --quiet
-# After renewal, copy updated certs and reload Nginx:
-# docker compose -f docker-compose.prod.yml exec nginx nginx -s reload
-```
+Variables:
 
----
+| Variable | Repo(s) | Value |
+|---|---|---|
+| `DEPLOY_ENABLED` | all three | `true` (the master switch) |
+| `WALMAL_DOMAIN` | walmal | the bare domain (smoke-job URLs) |
+| `NEXT_PUBLIC_API_URL` | walmal-store | `https://api.WALMAL_DOMAIN/api/v1` |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | walmal-store | the `pk_test_…` key |
+| `VITE_API_BASE_URL` | walmal-admin | `https://api.WALMAL_DOMAIN` |
 
-## Starting the Full Stack
+### 7. Stripe test-dashboard webhook
+
+Stripe Dashboard (TEST mode) → Developers → Webhooks → Add endpoint:
+- URL: `https://api.WALMAL_DOMAIN/api/v1/payment/webhook`
+- Events: `payment_intent.succeeded`, `payment_intent.payment_failed`
+- Copy the signing secret (`whsec_…`) into the server `.env` as
+  `STRIPE_WEBHOOK_SECRET`.
+
+### 8. First boot + seed
 
 ```bash
 cd /opt/walmal
-
-# First boot: run database migrations before starting the app
-export $(grep -v '^#' .env | xargs)
-./scripts/migrate-prod.sh
-
-# Start all services
+docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
-
-# Verify all containers are healthy
-docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml ps        # wait for healthy
+./scripts/seed-product-images.sh https://api.WALMAL_DOMAIN/api/v1
 ```
 
+Flyway migrations (V1–V18, including the demo catalog) run automatically on
+the backend's first boot; the seeder uploads the 15 product images
+(idempotent — safe to re-run any time the products come back imageless).
+
+### 9. Monitoring (Uptime Kuma)
+
+Open `https://status.WALMAL_DOMAIN`, create the admin account, then add
+monitors: `https://api.WALMAL_DOMAIN/actuator/health` (keyword `UP`),
+`https://shop.WALMAL_DOMAIN`, `https://admin.WALMAL_DOMAIN`. Configure a
+notification channel (email/Telegram) in Settings → Notifications and attach
+it to every monitor.
+
+### 10. Backups + the restore drill (MUST run once)
+
+```bash
+crontab -e
+# nightly at 03:00
+0 3 * * * cd /opt/walmal && ./deploy/backup.sh >> /var/log/walmal-backup.log 2>&1
+```
+
+Run the script once by hand, then **prove the restore path** (a backup you
+have never restored is not a backup): the exact `pg_restore` and
+volume-restore commands are in the comment block at the top of
+`deploy/backup.sh` — restore into a scratch database, confirm row counts,
+drop the scratch.
+
+Off-site copies are documented, not provisioned: rclone
+`/opt/walmal/backups` to any S3/B2 bucket on the same cron cadence.
+
 ---
+
+## Track 2 — Automated on every push (CI)
+
+With `DEPLOY_ENABLED=true` and the secrets set:
+
+- **walmal** (push to main): test suite → Docker image → GHCR → security
+  scan → SSH deploy (`compose pull app && up -d app`) → smoke job (public
+  health endpoint + shop 200). Gated by the `production` environment —
+  optional required-reviewer approval configurable in repo settings.
+- **walmal-store / walmal-admin** (push to default branch): lint + unit +
+  build → image build with the baked `NEXT_PUBLIC_*`/`VITE_*` variables →
+  GHCR → SSH deploy of just that service.
+
+With `DEPLOY_ENABLED` unset, all deploy jobs skip and CI stays green — the
+repos are fully buildable with zero infrastructure.
 
 ## Rollback
 
-### Option A — Redeploy previous image tag
+Images are tagged `sha-<commit>` in GHCR. To roll a service back, pin the
+tag for that service and re-up:
 
 ```bash
 cd /opt/walmal
-export WALMAL_IMAGE=ghcr.io/<org>/walmal/walmal-app:sha-<previous-sha>
-docker compose -f docker-compose.prod.yml up -d app
-./scripts/smoke-test.sh https://api.walmal.com
+WALMAL_IMAGE_TAG=sha-<good-commit> docker compose -f docker-compose.prod.yml up -d app
 ```
 
-### Option B — Restore from database backup
+Database rollbacks are restores (see backup.sh) — Flyway migrations are
+forward-only.
 
-Only needed if a bad migration was applied. See `docs/DR_PLAN.md` and `docs/MIGRATION_RUNBOOK.md#rollback`.
+## Operational notes
 
----
-
-## Secrets Management
-
-Secrets must never be committed to the repository. For production:
-
-- **Short-term**: use a `.env` file on the server (owned by root, permissions `600`)
-- **Long-term**: consider HashiCorp Vault or AWS Secrets Manager and inject via `SPRING_CONFIG_IMPORT=vault://...`
-
-Spring Boot relaxed binding maps `SPRING_DATASOURCE_URL` → `spring.datasource.url` automatically, so all secrets can be provided as environment variables without any code changes.
-
----
-
-## Monitoring
-
-- **Health**: `GET https://api.walmal.com/actuator/health` — accessible publicly, returns `{"status":"UP"}`
-- **Metrics**: `/actuator/prometheus` — accessible only from the internal network (blocked by Nginx for public access)
-- Connect Prometheus to `http://app:8080/actuator/prometheus` from within the `backend` Docker network
-- Recommended alerts: response time p99 > 2s, error rate > 1%, `status != UP`
+- **Logs**: `docker compose -f docker-compose.prod.yml logs -f <svc>`;
+  rotation configured (json-file 50m×5).
+- **MailHog** (`mail.WALMAL_DOMAIN`, basic-auth): every email the shop
+  "sends" lands here — order confirmations, shipping notices. Demo feature;
+  nothing leaves the box.
+- **Webhook reconciliation**: `payment_webhook_events` rows with status
+  `UNMATCHED` mean Stripe reported an intent no order claims — investigate.
+- The `api.` vhost caps request bodies at 20MB (Caddy) above Spring's own
+  11MB multipart limit; adjust both together if upload sizes grow.
+- **Local full-stack rehearsal** (no VPS): hosts-file entries for the five
+  names → 127.0.0.1, `WALMAL_DOMAIN=walmal.local`, and the Caddyfile's
+  commented `local_certs` block — the same procedure the repo's final
+  pre-deploy verification used.
