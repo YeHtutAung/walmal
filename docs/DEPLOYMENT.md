@@ -9,6 +9,12 @@ Two tracks below: **Track 1** is everything only a human can do (accounts,
 domain, secrets) — roughly an afternoon, once. **Track 2** is what runs
 automatically on every push after that.
 
+> Deploying to **AWS Lightsail (Singapore)**? Follow the concrete,
+> provider-specific walkthrough in
+> [`DEPLOYMENT-aws-lightsail.md`](DEPLOYMENT-aws-lightsail.md) — it fills in
+> the account/instance/DNS/budget-alert steps for AWS. This file remains the
+> canonical reference for the *why* and for CI (Track 2).
+
 ---
 
 ## Track 1 — One-time provisioning (you)
