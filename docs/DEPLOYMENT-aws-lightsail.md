@@ -204,10 +204,17 @@ cat ~/walmal-deploy.pub >> ~/.ssh/authorized_keys   # public half authorizes CI
    exact `pg_restore` / volume-restore commands are in the comment block at the
    top of `deploy/backup.sh`. A backup you have never restored is not a backup.
 
-   **Off-site copies (recommended on AWS):** `deploy/backup.sh` writes only to
-   the instance's local disk — lose the instance and you lose the backups. Sync
-   `/opt/walmal/backups` to an S3 bucket on the same cron (e.g.
-   `aws s3 sync /opt/walmal/backups s3://<your-bucket>/walmal-backups`).
+   **Off-site copies (recommended on AWS):** local backups share the
+   instance's fate. `deploy/backup.sh` has built-in, opt-in S3 sync — set
+   `S3_BACKUP_BUCKET` (bucket name, no `s3://` prefix) in the cron environment
+   and each day's backup is pushed to `s3://<bucket>/walmal-backups/<date>/`
+   after the local copy is verified. Credentials come from the standard AWS
+   chain (`aws configure` or env vars). Manage off-site retention with an S3
+   lifecycle rule on the bucket (the script never deletes anything remote):
+   ```bash
+   # in the crontab entry:
+   0 3 * * * cd /opt/walmal && S3_BACKUP_BUCKET=<your-bucket> ./deploy/backup.sh >> /var/log/walmal-backup.log 2>&1
+   ```
 
 ---
 

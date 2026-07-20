@@ -20,6 +20,10 @@
 #   RETAIN_DAYS    Days to keep dated backup dirs      (default: 7)
 #   SPRING_DATASOURCE_USERNAME   Postgres user inside the container (required —
 #                                already set in the stack's .env)
+#   S3_BACKUP_BUCKET   Opt-in off-site copy: S3 bucket NAME (no s3:// prefix).
+#                      Unset = local backup only. Credentials come from the
+#                      standard AWS chain (IAM role / `aws configure` / env).
+#   S3_BACKUP_PREFIX   Key prefix within the bucket    (default: walmal-backups)
 #
 # ── Restore procedure (MUST-RUN-ONCE drill — see docs/DEPLOYMENT.md) ──
 #   1. Postgres:
@@ -102,5 +106,28 @@ echo "[$(date -Iseconds)] MinIO archive complete: $(du -h "${TARGET_DIR}/minio-d
 # dirs — anything else placed under BACKUP_ROOT is never touched.
 echo "[$(date -Iseconds)] Pruning backups older than ${RETAIN_DAYS} days..."
 find "${BACKUP_ROOT}" -maxdepth 1 -mindepth 1 -type d -name '????-??-??' -mtime "+${RETAIN_DAYS}" -print -exec rm -rf {} \;
+
+# ── Off-site copy to S3 (opt-in) ──────────────────────────────────
+# Local backups share the instance's fate — lose the box, lose them. Set
+# S3_BACKUP_BUCKET to also push each day's backup off-site. Runs AFTER the
+# local dump/archive are verified above, so the on-disk backup is complete
+# and safe regardless of what happens here. Off-site retention is best
+# managed with an S3 lifecycle rule on the bucket, independent of the local
+# RETAIN_DAYS rotation above (this script never deletes anything remote).
+if [[ -n "${S3_BACKUP_BUCKET:-}" ]]; then
+  S3_BACKUP_PREFIX="${S3_BACKUP_PREFIX:-walmal-backups}"
+  S3_DEST="s3://${S3_BACKUP_BUCKET}/${S3_BACKUP_PREFIX}/${DATE_DIR}"
+  # Opted in but no CLI: fail loudly rather than silently skip — a backup you
+  # think is going off-site but isn't is worse than a known local-only one.
+  command -v aws >/dev/null 2>&1 || {
+    echo "[$(date -Iseconds)] ERROR: S3_BACKUP_BUCKET set but 'aws' CLI not found — install it or unset S3_BACKUP_BUCKET." >&2
+    exit 1
+  }
+  echo "[$(date -Iseconds)] Syncing ${TARGET_DIR} -> ${S3_DEST}..."
+  aws s3 sync "${TARGET_DIR}" "${S3_DEST}" --only-show-errors
+  echo "[$(date -Iseconds)] Off-site sync complete: ${S3_DEST}"
+else
+  echo "[$(date -Iseconds)] S3_BACKUP_BUCKET unset — skipping off-site copy (local backup only)."
+fi
 
 echo "[$(date -Iseconds)] Backup job finished successfully: ${TARGET_DIR}"
