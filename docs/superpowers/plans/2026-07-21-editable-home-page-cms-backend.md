@@ -17,7 +17,8 @@
 ## File Structure
 
 **New module `walmal-content/`:**
-- `pom.xml` — depends on `walmal-common` only (for `FileStorageService`, `AuditService`, `ApiResponse`, `AuthenticatedPrincipal`), plus JPA/web/validation/test starters mirrored from `walmal-product/pom.xml`.
+- `pom.xml` — mirror `walmal-product/pom.xml`. **Main-scope module coupling is `walmal-common` only** (for `FileStorageService`, `AuditService`, `ApiResponse`, `AuthenticatedPrincipal`); but also keep these starters/deps that `walmal-product` carries and Task 5 needs: `spring-boot-starter-data-jpa`, `spring-boot-starter-web`, `spring-boot-starter-validation`, **`spring-boot-starter-security` (main — `@PreAuthorize`, `@AuthenticationPrincipal`, `AccessDeniedException`)**, `spring-boot-starter-test` (test), **`spring-security-test` (test)**, **`walmal-auth` at `<scope>test</scope>`** (so `ContentControllerTest` can `@Import(AuthSecurityConfig)` + use `TokenValidationService`/`JwtProperties` to exercise the real filter chain, exactly as `ProductControllerTest` does), and **`flyway-core` at test scope** (integration test runs migrations). The pom inherits `<excludedGroups>${excludedGroups}</excludedGroups>` (default `integration`) — so `@Tag("integration")` tests are skipped in the normal `test` phase and must be run with `-Dgroups=integration`.
+- `src/test/java/com/walmal/content/ContentTestApplication.java` — a bare `@SpringBootApplication` config anchor (copy `walmal-product/src/test/java/com/walmal/product/ProductTestApplication.java`). **Required** — both `@SpringBootTest` and `@WebMvcTest` need a `@SpringBootConfiguration` in the module's test tree or they fail with "Unable to find a @SpringBootConfiguration."
 - `src/main/java/com/walmal/content/domain/`
   - `ContentHome.java` — JPA entity: `status` (PK, String), `content` (JSONB → `HomeContent`), `updatedAt`, `updatedBy`.
   - `HomeContent.java` — record: `{ Hero hero, List<CategoryTile> categoryTiles, Promo promo }` (the persisted document AND the API body; one shape, no duplication).
@@ -32,7 +33,7 @@
   - `dto/ContentImageDto.java` — record `{ String imageUrl }`.
 - `src/main/java/com/walmal/content/api/`
   - `ContentController.java` — the 5 endpoints.
-- `src/test/java/com/walmal/content/` — `application/HomeContentServiceImplTest.java` (Mockito), `infrastructure/ContentIntegrationTest.java` (Docker-Compose PG).
+- `src/test/java/com/walmal/content/` — `ContentTestApplication.java` (`@SpringBootApplication` anchor), `application/HomeContentServiceImplTest.java` (Mockito), `api/ContentControllerTest.java` (`@WebMvcTest`), `infrastructure/ContentIntegrationTest.java` (Docker-Compose PG, `@Tag("integration")`).
 
 **Modified existing files:**
 - `pom.xml` (root) — add `<module>walmal-content</module>`.
@@ -52,7 +53,7 @@
 - Modify: `pom.xml` (root, module list), `walmal-app/pom.xml` (dependency)
 - Create: `walmal-app/src/main/resources/db/migration/V19__content_create_tables.sql`
 
-- [ ] **Step 1: Create `walmal-content/pom.xml`** — copy `walmal-product/pom.xml`, change `<artifactId>` to `walmal-content`, keep the same dependency set but drop any product-specific deps; keep `walmal-common`, `spring-boot-starter-data-jpa`, `spring-boot-starter-web`, `spring-boot-starter-validation`, test starters. (Match `walmal-product/pom.xml` exactly for versions/parent.)
+- [ ] **Step 1: Create `walmal-content/pom.xml`** — copy `walmal-product/pom.xml`, change `<artifactId>` to `walmal-content`. Keep the exact dependency set (do NOT trim it): `walmal-common` (main), `spring-boot-starter-data-jpa`, `-web`, `-validation`, `-security` (all main); `walmal-auth` **test scope**, `spring-boot-starter-test`, `spring-security-test`, `flyway-core` (all test); plus the same Surefire plugin block with `<excludedGroups>${excludedGroups}</excludedGroups>` and the `excludedGroups=integration` property. Match `walmal-product/pom.xml` exactly for parent/versions. (Rationale: `walmal-product` is likewise "walmal-common only" in *main* scope; its `walmal-auth` dep is test-scoped — the controller test needs the real security config.)
 
 - [ ] **Step 2: Register module in root `pom.xml`** — add after the `walmal-notification` line:
 ```xml
@@ -233,7 +234,30 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ContentHomeRepository extends JpaRepository<ContentHome, String> {}
 ```
 
-- [ ] **Step 4: Write a failing persistence test** in `ContentIntegrationTest.java`. Mirror `walmal-product/.../infrastructure/ProductIntegrationTest.java` harness (Docker-Compose PG via `application-test.yml`, NOT Testcontainers — see repo memory; use `@SpringBootTest` + `@ActiveProfiles("test")` + a `@TestConfiguration` supplying a no-op `FileStorageService` and a JdbcTemplate-backed `AuditService`, exactly like `ProductIntegrationTest.TestInfrastructureConfig`). First test:
+- [ ] **Step 4: Write a failing persistence test** in `ContentIntegrationTest.java`.
+
+  **⚠ Harness: do NOT copy `ProductIntegrationTest`'s connection setup — it uses Testcontainers (`@Testcontainers` + `PostgreSQLContainer` + `@DynamicPropertySource`), which is INCOMPATIBLE with this environment (repo memory: BadRequestException 400).** The correct Docker-Compose-PG exemplar is `walmal-app/src/test/java/com/walmal/WalmalApplicationTest.java`: an inline `@SpringBootTest(properties = {...})` pointing at `localhost:5432`. Use this shape:
+```java
+@Tag("integration")
+@SpringBootTest(properties = {
+    "spring.datasource.url=jdbc:postgresql://localhost:5432/walmal",
+    "spring.datasource.username=walmal",
+    "spring.datasource.password=walmal",
+    "spring.jpa.hibernate.ddl-auto=validate",
+    "spring.flyway.enabled=true"
+})
+class ContentIntegrationTest {
+    @Autowired ContentHomeRepository repository;
+    @Autowired HomeContentService service;
+    @Autowired JdbcTemplate jdbcTemplate;
+    // reuse the SAME inner-config pattern ProductIntegrationTest uses for beans
+    // (this part IS reusable): a @TestConfiguration supplying a no-op
+    // FileStorageService and a JdbcTemplate-backed AuditService. Content needs
+    // FileStorageService (for uploadImage) + AuditService (for publish).
+    ...
+}
+```
+  Copy only `ProductIntegrationTest.TestInfrastructureConfig`'s bean definitions (no-op `FileStorageService`, JdbcTemplate `AuditService`), NOT its container/datasource wiring. The `ContentTestApplication` anchor (Task 1) provides the `@SpringBootConfiguration`. First test:
 ```java
 @Test
 void should_roundTripJsonbDocument_when_savedAndReloaded() {
@@ -246,14 +270,13 @@ void should_roundTripJsonbDocument_when_savedAndReloaded() {
 }
 ```
 
-- [ ] **Step 5: Run the test, expect FAIL** (until Flyway migration + entity are on the test classpath). Ensure the test module has the V19 migration visible — integration tests load `classpath:db/migration`; copy `V19__content_create_tables.sql` into `walmal-content/src/test/resources/db/migration/` alongside the V1/V2/V3 copies the product test module keeps (check how `walmal-product/src/test/resources/db/migration/` is populated and mirror it — the content test needs V1 [audit_log] + V19).
-Run:
+- [ ] **Step 5: Run the test, expect FAIL** (until Flyway migration + entity are on the test classpath). Ensure the test module has the migrations it needs — integration tests load `classpath:db/migration`; copy `V1__common_create_audit_log.sql` (audit_log, needed by the AuditService bean) and `V19__content_create_tables.sql` into `walmal-content/src/test/resources/db/migration/` (mirror how `walmal-product/src/test/resources/db/migration/` is populated). **These are `@Tag("integration")` tests excluded from the default phase — you MUST pass `-Dgroups=integration` or the command runs 0 tests and falsely reports success:**
 ```
-JAVA_HOME="/c/Program Files/Java/jdk-21.0.10" ./mvnw -q -pl walmal-content test -Dtest=ContentIntegrationTest
+JAVA_HOME="/c/Program Files/Java/jdk-21.0.10" ./mvnw -q -pl walmal-content test -Dgroups=integration -Dtest=ContentIntegrationTest
 ```
-Expected initially: FAIL/ERROR.
+Expected initially: FAIL/ERROR (and confirm "Tests run: 1" — not "Tests run: 0"). Docker-Compose services must be up (`docker compose up -d --wait`).
 
-- [ ] **Step 6: Make it pass** — ensure test resources (migrations, `application-test.yml` pointing at localhost:5432 Docker-Compose PG) are in place; rerun. Expected: PASS (JSONB round-trips).
+- [ ] **Step 6: Make it pass** — ensure migrations are in `src/test/resources/db/migration/` and the datasource properties point at localhost:5432; rerun with `-Dgroups=integration`. Expected: PASS (JSONB round-trips), "Tests run: 1, Failures: 0".
 
 - [ ] **Step 7: Commit**
 ```bash
@@ -310,7 +333,7 @@ public interface HomeContentService {
 
 - [ ] **Step 3: Run → FAIL.**
 
-- [ ] **Step 4: Implement `HomeContentServiceImpl`** (`@Service @Transactional`). Constructor-inject `ContentHomeRepository`, `ContentImageStorageAdapter`, `AuditService`. Implement upsert helpers keyed by status; `publish` writes an `AuditEntry("content_home", <fixed uuid or null-safe id>, AuditAction.UPDATE, oldJson, newJson, performedBy)` **before** persisting the PUBLISHED row (Audit Log rule). Include a `static final HomeContent DEFAULT` built from the current storefront copy (hero "Own the pitch." etc.) — used only by `getDraft` fallback.
+- [ ] **Step 4: Implement `HomeContentServiceImpl`** (`@Service @Transactional`). Constructor-inject `ContentHomeRepository`, `ContentImageStorageAdapter`, `AuditService`. Implement upsert helpers keyed by status; `publish` writes an `AuditEntry("content_home", CONTENT_HOME_AUDIT_ID, AuditAction.UPDATE, oldJson, newJson, performedBy)` **before** persisting the PUBLISHED row (Audit Log rule). Note: `audit_log.record_id` is `UUID NOT NULL` but `content_home`'s PK is a `String` — so use a **fixed sentinel `UUID` constant** `CONTENT_HOME_AUDIT_ID` (not null, not the string PK). `AuditAction` has only `DELETE`/`UPDATE`/`STATUS_CHANGE` — use `UPDATE` (there is no `PUBLISH` value despite the spec prose). Include a `static final HomeContent DEFAULT` built from the current storefront copy (hero "Own the pitch." etc.) — used only by `getDraft` fallback.
 
 - [ ] **Step 5: Run → PASS.**
 
@@ -358,7 +381,7 @@ walmal:
 
 - [ ] **Step 5: Implement `ContentController`** (`@RestController @RequestMapping("/api/v1/content")`). Inject `HomeContentService` and `@Value("${walmal.content.preview-token}") String previewToken`. Endpoints (mirror `ProductImageController` for multipart + `ApiResponse` envelope):
   - `GET /home` → `getPublished()`; return `204 No Content` when empty, else `ApiResponse.ok(content)`.
-  - `GET /home/draft` (params: optional `previewToken`, `@AuthenticationPrincipal AuthenticatedPrincipal principal`) — **self-authorize**: allow if `previewToken != null && constantTimeEquals(previewToken, configuredToken)` OR `principal != null && principal.hasRole ADMIN/STAFF`; else throw an `AccessDeniedException`. Return `ApiResponse.ok(getDraft())`. (Constant-time compare via `MessageDigest.isEqual` on UTF-8 bytes.)
+  - `GET /home/draft` (params: optional `previewToken`, `@AuthenticationPrincipal AuthenticatedPrincipal principal`) — **self-authorize** (no `@PreAuthorize` on this method, since the previewToken path carries no JWT). `AuthenticatedPrincipal` is `record(UUID userId, String username, String role)` — it has **no `hasRole` method**; compare the `role()` string (stored without the `ROLE_` prefix). Allow if `previewToken != null && MessageDigest.isEqual(previewToken.getBytes(UTF_8), configuredToken.getBytes(UTF_8))` OR `principal != null && (principal.role().equals("ADMIN") || principal.role().equals("STAFF"))`; else throw `AccessDeniedException`. Return `ApiResponse.ok(getDraft())`.
   - `PUT /home/draft` `@PreAuthorize("hasAnyRole('ADMIN','STAFF')")`, `@Valid @RequestBody HomeContent` → `saveDraft(...)`, return `ApiResponse.ok("Draft saved", null)` or 204.
   - `POST /home/publish` `@PreAuthorize("hasRole('ADMIN')")` → `publish(principal.username())`, 204. Catch `IllegalStateException` (no draft) → 409 via the global handler (add a mapping if needed) or a `@ResponseStatus` exception.
   - `POST /images` `@PreAuthorize("hasAnyRole('ADMIN','STAFF')")`, params `section` + `MultipartFile file` → validate `file.getContentType()` starts with `image/` (400 otherwise), call `uploadImage(...)`, return `201` `ApiResponse.ok("Image uploaded", dto)`.
@@ -405,11 +428,11 @@ void should_persistVariableLengthTiles_intact() {
 }
 ```
 
-- [ ] **Step 2: Run the integration test** (Docker-Compose services up):
+- [ ] **Step 2: Run the integration test** (Docker-Compose services up) — **`-Dgroups=integration` required** (else 0 tests run):
 ```
-JAVA_HOME="/c/Program Files/Java/jdk-21.0.10" ./mvnw -q -pl walmal-content test -Dtest=ContentIntegrationTest
+JAVA_HOME="/c/Program Files/Java/jdk-21.0.10" ./mvnw -q -pl walmal-content test -Dgroups=integration
 ```
-Expected: PASS.
+Expected: PASS; confirm the run count matches the number of `@Test` methods (not "Tests run: 0").
 
 - [ ] **Step 3: Commit** `test(content): end-to-end draft/publish integration coverage`.
 
