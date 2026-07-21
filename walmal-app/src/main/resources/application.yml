@@ -63,6 +63,8 @@ spring:
       add-mappings: false
 
 walmal:
+  content:
+    preview-token: ${CONTENT_PREVIEW_TOKEN:dev-preview-token-change-me}
   minio:
     url: ${MINIO_URL:http://localhost:9000}
     public-url: ${MINIO_PUBLIC_URL:${MINIO_URL:http://localhost:9000}}

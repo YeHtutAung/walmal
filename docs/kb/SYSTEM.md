@@ -7,6 +7,13 @@
 | Repo | Role | Workspace path | Default port |
 |------|------|----------------|--------------|
 | walmal | Spring Boot modular monolith (hub) | `C:/YHA/006_Claude_Workspace/walmal` | 8080 |
+
+Spring modules in the walmal monolith: `walmal-auth`, `walmal-product`,
+`walmal-inventory`, `walmal-order`, `walmal-pos`, `walmal-warehouse`,
+`walmal-notification`, and `walmal-content` (home-page CMS — draft/publish
+editorial content; net-new beyond the original 9-step build order, see
+`docs/adr/ADR-10-content-module.md`). Cross-cutting: `walmal-common`,
+`walmal-infrastructure`, `walmal-app`.
 | walmal-store | Next.js App Router storefront | `C:/YHA/006_Claude_Workspace/walmal-store` | 3000 dev / 3001 E2E |
 | walmal-admin | Vite + React + Refine admin SPA | `C:/YHA/006_Claude_Workspace/walmal-admin` | 5173 dev (Vite default — not pinned in vite.config.ts); 5174 E2E (pinned, strictPort, in `playwright.config.ts`) |
 
@@ -17,7 +24,7 @@
 | postgres 15 | 5432 | primary DB |
 | redis 7 | 6379 | cache / session / locks |
 | rabbitmq 3-management | 5672 AMQP, 15672 mgmt UI | message broker |
-| minio | 9000 API, 9001 console | S3-compatible file storage |
+| minio | 9000 API, 9001 console | S3-compatible file storage. Buckets created lazily on first upload: `product-images`, `content-images` (both public-read). |
 | mailhog | 1025 SMTP, 8025 UI | dev email sink |
 | app (Spring Boot) | 8080 | built image; **`profiles: ["full"]` — NOT started by a bare `docker compose up`**. Dev/E2E use the JAR directly instead; run the container with `docker compose --profile full up -d --wait`. |
 
@@ -96,6 +103,18 @@ Endpoints intended for consumption by `walmal-admin` (or other non-walmal client
 | `GET /api/v1/auth/users/search?q=` | `ADMIN` role only (JWT) | **Bare `Page<UserProfileResponse>` — NO `ApiResponse` envelope** (the auth module's own response convention; walmal-admin's shared `unwrap` tolerates both shapes). Each: `{id, username, email, role, isActive}`. Matches username or email substring, case-insensitive. Same guard as orders search: `q` missing (`defaultValue = ""`) or under 2 chars after trim returns an empty page without touching the DB. Wildcards in `q` match literally (the derived Spring Data query escapes them itself). |
 | `POST /api/v1/auth/users` | `ADMIN` role only (JWT) | Body `{username, email, password, role, active?}` — `active` is optional `Boolean`; `null`/omitted = `true` (pre-existing default). `false` creates the user inactive (walmal-admin's create-user form sends it; was silently ignored before 2026-07-12). Response: **bare `UserProfileResponse` — NO `ApiResponse` envelope** (auth-module convention, same as `users/search` above). |
 
+### Home-Page CMS (`walmal-content`, 2026-07-21)
+
+Editable home-page document (hero, category tiles, promo) with a draft → publish lifecycle. One JSONB document per lifecycle status in `content_home` (`@JdbcTypeCode(SqlTypes.JSON)`, `Order.shippingAddress` precedent); publish copies DRAFT → PUBLISHED. All responses use the `ApiResponse` envelope except where a bare 204 is noted. `href` link values are stored as opaque site-relative paths (must start with `/`); the module has **no** dependency on `walmal-product`. See `docs/adr/ADR-10-content-module.md`.
+
+| Endpoint | Auth | Response |
+|----------|------|----------|
+| `GET /api/v1/content/home` | **Public** (`permitAll` GET path) | `ApiResponse<HomeContent>` — the published document. **204 No Content** if nothing has ever been published (consumers must handle the empty-body case, not just `data:null`). |
+| `GET /api/v1/content/home/draft` | **Dual-auth**: a valid ADMIN/STAFF JWT **OR** a correct `previewToken` query param | `permitAll` at the filter chain, **self-authorized in the controller** (constant-time token compare) — same pattern as the Stripe webhook. Returns `ApiResponse<HomeContent>` (DRAFT → PUBLISHED → default fallback). **403** when neither a valid token nor an ADMIN/STAFF role is presented. The `previewToken` secret is `CONTENT_PREVIEW_TOKEN` (see Env Matrix). |
+| `PUT /api/v1/content/home/draft` | `ADMIN` or `STAFF` role (JWT) | Replaces the DRAFT document. `@Valid` body; writes an `audit_log` row (action `UPDATE`, table `content_home`). **400** on an invalid document, **403** on wrong role. |
+| `POST /api/v1/content/home/publish` | **`ADMIN` role only** (JWT) | Promotes DRAFT → PUBLISHED; writes an `audit_log` row (action `UPDATE`) before the write. **204 No Content** on success, **409** if there is no draft to publish. |
+| `POST /api/v1/content/images` | `ADMIN` or `STAFF` role (JWT) | Multipart image upload (`section`, `file`) to the `content-images` MinIO bucket; returns `ApiResponse<ContentImageDto>` `{ imageUrl }`, **201**. `section` is allow-listed to `hero|tile|promo` (path-traversal guard on the object key); content-type must be `image/*`. **400** on a missing file or non-image content type. |
+
 ## Environment Variables Matrix (names + purpose only — never values)
 
 ### walmal (Spring Boot)
@@ -130,6 +149,16 @@ Endpoints intended for consumption by `walmal-admin` (or other non-walmal client
   a throwaway default, env-overridable).
 - `WALMAL_RATE_LIMIT_UNAUTHENTICATED` — req/min for guests (default 20)
 - `WALMAL_TRUST_PROXY` — set true when behind a reverse proxy
+- `CONTENT_PREVIEW_TOKEN` — shared secret that gates the home-page **draft**
+  preview read (`GET /api/v1/content/home/draft`) for callers without an
+  ADMIN/STAFF JWT (maps to `walmal.content.preview-token`). **Fail-closed in
+  production.** Dev: `application.yml` supplies a committed default
+  (`dev-preview-token-change-me`) so local runs work. Prod:
+  `docker-compose.prod.yml` wires
+  `${CONTENT_PREVIEW_TOKEN:?see .env.production.example}` — the Compose `:?`
+  gate makes the deploy fail fast if it is unset, so the dev default is never
+  the effective prod secret. Documented (unset) in `.env.production.example`.
+  Generate with `openssl rand -hex 32`.
 - `SPRING_MAIL_SMTP_AUTH` / `SPRING_MAIL_SMTP_STARTTLS_ENABLE` — mail auth/TLS
   flags (`application-prod.yml`), both default `false`. The prod profile used
   to hardcode `true`/`true`; MailHog (the prod-compose email sink — see

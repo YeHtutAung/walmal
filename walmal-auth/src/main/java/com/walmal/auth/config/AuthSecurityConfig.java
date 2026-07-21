@@ -71,7 +71,14 @@ public class AuthSecurityConfig {
             "/api/v1/product/categories/**",
             "/api/v1/product/**",
             // Default location needed for order placement by guests and customers
-            "/api/v1/inventory/locations/default"
+            "/api/v1/inventory/locations/default",
+            // Home CMS: published content is public; the draft read is dual-auth
+            // (JWT or previewToken) and self-authorizes in ContentController, so it
+            // must pass the filter chain without a mandatory JWT. Mutating content
+            // routes (PUT/POST) are NOT listed here — they hit anyRequest().authenticated()
+            // + method security.
+            "/api/v1/content/home",
+            "/api/v1/content/home/draft"
     };
 
     @Bean
