@@ -95,6 +95,18 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("Validation failed", fieldErrors));
     }
 
+    @ExceptionHandler({
+            org.springframework.web.bind.MissingServletRequestParameterException.class,
+            org.springframework.web.multipart.support.MissingServletRequestPartException.class
+    })
+    public ResponseEntity<ApiResponse<Void>> handleMissingParameter(Exception ex) {
+        // Missing required @RequestParam / multipart part — a client error, not a
+        // server fault (was falling through to the 500 catch-all).
+        logWarn(ex);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleResourceNotFound(ResourceNotFoundException ex) {
         logWarn(ex);

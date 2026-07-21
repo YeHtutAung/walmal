@@ -98,7 +98,11 @@ public class ContentController {
             @RequestParam(required = false) String previewToken,
             @AuthenticationPrincipal AuthenticatedPrincipal principal) {
 
-        boolean tokenOk = previewToken != null && MessageDigest.isEqual(
+        // Require a non-blank configured token: an empty configured token would make
+        // MessageDigest.isEqual([], []) true for an empty ?previewToken= param — an
+        // auth bypass. Fail closed if the token was never configured.
+        boolean tokenOk = previewToken != null && !this.previewToken.isBlank()
+                && MessageDigest.isEqual(
                 previewToken.getBytes(StandardCharsets.UTF_8),
                 this.previewToken.getBytes(StandardCharsets.UTF_8));
         boolean roleOk = principal != null
@@ -162,7 +166,9 @@ public class ContentController {
             @RequestParam MultipartFile file,
             @AuthenticationPrincipal AuthenticatedPrincipal principal) throws IOException {
 
-        if (section == null || !SECTION_PATTERN.matcher(section).matches()) {
+        // section is a required @RequestParam (missing → 400 before we get here), so it
+        // is non-null; validate its value against the allow-list.
+        if (!SECTION_PATTERN.matcher(section).matches()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalid section");
         }
 

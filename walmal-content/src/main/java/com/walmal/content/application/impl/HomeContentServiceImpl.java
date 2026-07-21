@@ -19,6 +19,7 @@ import com.walmal.content.infrastructure.ContentImageStorageAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.InputStream;
@@ -147,8 +148,11 @@ public class HomeContentServiceImpl implements HomeContentService {
     }
 
     @Override
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public ContentImageDto uploadImage(String section, InputStream data, String filename,
                                        String contentType, long size, String performedBy) {
+        // No DB work here — run non-transactionally so the class-level write @Transactional
+        // doesn't hold a pooled DB connection across the MinIO upload/presign network calls.
         String key = storageAdapter.store(section, filename, data, size, contentType);
         String url = storageAdapter.getUrl(key);
         log.info("Home content image uploaded to section '{}' (key={}) by {}", section, key, performedBy);
