@@ -57,6 +57,11 @@
             <artifactId>walmal-notification</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.walmal</groupId>
+            <artifactId>walmal-content</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>

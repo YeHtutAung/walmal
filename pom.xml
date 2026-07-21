@@ -28,6 +28,7 @@
         <module>walmal-pos</module>
         <module>walmal-warehouse</module>
         <module>walmal-notification</module>
+        <module>walmal-content</module>
         <module>walmal-app</module>
     </modules>
 
