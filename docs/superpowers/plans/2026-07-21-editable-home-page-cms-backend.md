@@ -275,9 +275,9 @@ void should_roundTripJsonbDocument_when_savedAndReloaded() {
 
 - [ ] **Step 5: Run the test, expect FAIL** (until Flyway migration + entity are on the test classpath). Ensure the test module has the migrations it needs — integration tests load `classpath:db/migration`; copy `V1__common_create_audit_log.sql` (audit_log, needed by the AuditService bean) and `V19__content_create_tables.sql` into `walmal-content/src/test/resources/db/migration/` (mirror how `walmal-product/src/test/resources/db/migration/` is populated). **These are `@Tag("integration")` tests excluded from the default phase — you MUST pass `-Dgroups=integration` or the command runs 0 tests and falsely reports success:**
 ```
-JAVA_HOME="/c/Program Files/Java/jdk-21.0.10" ./mvnw -q -pl walmal-content test -Dgroups=integration -Dtest=ContentIntegrationTest
+JAVA_HOME="/c/Program Files/Java/jdk-21.0.10" ./mvnw -q -pl walmal-content test -Dgroups=integration -DexcludedGroups= -Dtest=ContentIntegrationTest
 ```
-Expected initially: FAIL/ERROR (and confirm "Tests run: 1" — not "Tests run: 0"). Docker-Compose services must be up (`docker compose up -d --wait`).
+Expected initially: FAIL/ERROR (and confirm "Tests run: 1" — not "Tests run: 0"). Docker-Compose services must be up (`docker compose up -d --wait`). **`-DexcludedGroups=` is REQUIRED in addition to `-Dgroups=integration`:** the module pom sets `excludedGroups=integration` by default, and when a tag is in both include and exclude, exclude wins → 0 tests (false green). Verified during Task 2.
 
 - [ ] **Step 6: Make it pass** — ensure migrations are in `src/test/resources/db/migration/` and the datasource properties point at localhost:5432; rerun with `-Dgroups=integration`. Expected: PASS (JSONB round-trips), "Tests run: 1, Failures: 0".
 
@@ -433,9 +433,9 @@ void should_persistVariableLengthTiles_intact() {
 
 - [ ] **Step 2: Run the integration test** (Docker-Compose services up) — **`-Dgroups=integration` required** (else 0 tests run):
 ```
-JAVA_HOME="/c/Program Files/Java/jdk-21.0.10" ./mvnw -q -pl walmal-content test -Dgroups=integration
+JAVA_HOME="/c/Program Files/Java/jdk-21.0.10" ./mvnw -q -pl walmal-content test -Dgroups=integration -DexcludedGroups=
 ```
-Expected: PASS; confirm the run count matches the number of `@Test` methods (not "Tests run: 0").
+Expected: PASS; confirm the run count matches the number of `@Test` methods (not "Tests run: 0"). (`-DexcludedGroups=` is required — see Task 2 Step 5.)
 
 - [ ] **Step 3: Commit** `test(content): end-to-end draft/publish integration coverage`.
 
