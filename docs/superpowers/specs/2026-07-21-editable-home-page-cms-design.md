@@ -175,7 +175,7 @@ CREATE TABLE content_home (
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | `GET`  | `/content/home`        | public | Published document (store SSG/ISR + browser). 204 if never published. |
-| `GET`  | `/content/home/draft`  | ADMIN, STAFF | Draft document (admin editor + preview). |
+| `GET`  | `/content/home/draft`  | ADMIN, STAFF **or** valid `previewToken` | Draft document (admin editor + store preview — see Preview). |
 | `PUT`  | `/content/home/draft`  | ADMIN, STAFF | Replace the draft document. |
 | `POST` | `/content/home/publish`| **ADMIN only** | Promote draft → published. |
 | `POST` | `/content/images`      | ADMIN, STAFF | Upload an image (multipart), returns `{ imageUrl }`. |
@@ -184,9 +184,14 @@ CREATE TABLE content_home (
   contains no sensitive data.
 - Publish is ADMIN-only (a live-shop mutation); editing/drafting is ADMIN+STAFF,
   matching the existing product-image endpoints.
+- `GET /content/home/draft` is **dual-auth**: a valid ADMIN/STAFF JWT **or** a
+  correct `previewToken` query param (option (a) below). Its Spring Security
+  config must be built for both from the start — not JWT-only then retrofitted.
+  The token grants draft *reads only*; it is never accepted on mutating routes.
 - Springdoc annotations on all endpoints (Definition of Done).
-- Multipart limit reuses the existing 11 MB `spring.servlet.multipart` config and
-  the Caddy 20 MB edge cap — no new config.
+- Multipart limit reuses the existing `spring.servlet.multipart` config
+  (`max-file-size: 10MB`, `max-request-size: 11MB`) and the Caddy 20 MB edge cap
+  — no new config; effective per-image ceiling is 10 MB.
 
 ### Testing
 - `@DataJpaTest`/integration test in `walmal-content` (Docker-Compose Postgres per
@@ -243,12 +248,18 @@ CREATE TABLE content_home (
     `draftMode().enable()`, redirects to `/`.
   - New route `.../api/preview/disable` to exit.
   - `fetchHomeContent()` checks `draftMode().isEnabled` and, when true, calls
-    `GET /content/home/draft` **with the admin's bearer token**. Because the
-    store is a public SPA without the admin's JWT, the preview fetch instead uses
-    a **server-to-server** call from the Next.js route handler carrying a
-    dedicated preview credential — see Open Questions.
+    `GET /content/home/draft?previewToken=<PREVIEW_TOKEN>` as a **server-to-server
+    call from the Next.js server** (route handler / server component), never from
+    the browser and never carrying an admin JWT (the store has none). The backend
+    validates the token for draft reads only (Open Questions, option (a)).
   - Admin "Preview" button opens
     `https://shop.…/api/preview?token=<PREVIEW_TOKEN>`.
+  - **Token delivery is a conscious trade-off:** the admin holds `PREVIEW_TOKEN`
+    as a build-time env baked into its client bundle, so anyone who can load the
+    (auth-gated) admin can read it, and it transits the preview URL (browser
+    history / referrer). Blast radius is limited to *draft home content* and the
+    token is rotatable. Accepted for v1; revisit if the preview ever exposes
+    anything sensitive.
 
 ## Security (security-auditor scope)
 
