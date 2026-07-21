@@ -71,6 +71,19 @@
             <artifactId>flyway-core</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Flyway PostgreSQL support + JDBC driver: the JSONB round-trip integration
+             test runs Flyway against the Docker-Compose Postgres and validates the
+             content_home schema. Test scope only — no runtime coupling. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
