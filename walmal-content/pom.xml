@@ -46,6 +46,15 @@
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
+        <!-- Springdoc OpenAPI: supplies io.swagger.v3.oas.annotations.* used on the
+             REST controller and satisfies the "OpenAPI docs generated" Definition of
+             Done. Same version pinned by walmal-product and walmal-notification. -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.7.0</version>
+        </dependency>
+
         <!-- Test dependencies -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
