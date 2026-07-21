@@ -17,6 +17,7 @@ COPY walmal-order/pom.xml         walmal-order/pom.xml
 COPY walmal-pos/pom.xml           walmal-pos/pom.xml
 COPY walmal-warehouse/pom.xml     walmal-warehouse/pom.xml
 COPY walmal-notification/pom.xml  walmal-notification/pom.xml
+COPY walmal-content/pom.xml       walmal-content/pom.xml
 COPY walmal-app/pom.xml           walmal-app/pom.xml
 
 RUN chmod +x mvnw && sed -i 's/\r//' mvnw && ./mvnw dependency:go-offline -B
