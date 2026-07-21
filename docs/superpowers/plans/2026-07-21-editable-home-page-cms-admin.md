@@ -71,7 +71,7 @@ Image URLs come back as `http://minio:9000/...` (prod) / `http://localhost:9000/
 
 **Files:** `src/pages/home-content/edit.tsx`
 
-- [ ] **Step 1:** Create `edit.tsx`. On mount, `apiClient.get('/api/v1/content/home/draft')` → hydrate a `useState<HomeContent>`; on error show a message. Render:
+- [ ] **Step 1:** Create `edit.tsx`. On mount, `apiClient.get('/api/v1/content/home/draft')` → the value is `res.data.data` (raw axios, no data-provider unwrap; use the shared `unwrap<T>()` helper in `src/lib/api-response.ts`, as other direct-`apiClient` pages do) → hydrate a `useState<HomeContent>`; on error show a message. **Role for the Publish button:** do NOT use `useGetIdentity()` (it returns only `{id,email,name}` — no role). Read the role via Refine's `usePermissions()` (returns the role string, as `Header.tsx` does) or `localStorage.getItem("role")`; render Publish only when it equals `"ADMIN"`. On a 400 from Save, surface field errors from the `ApiResponse` error body (inspect the actual shape — field errors > `message` > `detail`, per SYSTEM.md's error-body contract). Render:
   - **Hero** section: inputs for eyebrow, headline (textarea — `\n` allowed), subtext; `ImageUploadField(section='hero')`; primary CTA label `<Input>` + `LinkField`; a "secondary CTA" toggle that adds/removes the optional secondary `{label, href}`.
   - **Category Tiles**: `<TilesEditor>`.
   - **Promo** section: eyebrow, heading (textarea), text; `ImageUploadField(section='promo')`; CTA label + `LinkField`.
@@ -91,8 +91,8 @@ Image URLs come back as `http://minio:9000/...` (prod) / `http://localhost:9000/
   </CanAccess>
 } />
 ```
-(import `HomeContentEditPage` from `@/pages/home-content/edit`).
-- [ ] **Step 2:** `Sider.tsx` — add a new nav group `{ label: "Storefront", items: [{ label: "Home Page", path: "/home-content", resource: "content/home", icon: <pick a lucide icon e.g. LayoutTemplate> }] }`.
+(import `HomeContentEditPage` from `@/pages/home-content/edit`). Place this `<Route>` INSIDE the authenticated `<Route element={<AppLayout/>}>` block (with the other feature routes), NOT among the public routes.
+- [ ] **Step 2:** `Sider.tsx` — nav items are filtered by a hardcoded `visible[item.resource]` record built from fixed `useCan()` hooks; appending to `NAV_GROUPS` alone will NOT render the item. Do THREE things: (a) add the group `{ label: "Storefront", items: [{ label: "Home Page", path: "/home-content", resource: "content/home", icon: LayoutTemplate }] }` (import `LayoutTemplate` from lucide-react); (b) add `const { data: canHomeContent } = useCan({ resource: "content/home", action: "list" });` alongside the other `useCan` hooks; (c) add `"content/home": canHomeContent?.can ?? false` to the `visible` record. Without (b)+(c) the link is invisible.
 - [ ] **Step 3:** `access-control-provider.ts` — add `content/home` to the allowed resources for `ADMIN` and `STAFF` (match the existing rolePerms structure). Verify CASHIER/CUSTOMER etc. do NOT get it.
 - [ ] **Step 4:** `vite-env.d.ts` — add `readonly VITE_STORE_URL: string` and `readonly VITE_PREVIEW_TOKEN: string` to the `ImportMetaEnv` interface.
 - [ ] **Step 5:** `npm run build` (typecheck+bundle) + `npm run lint` → clean. Commit `feat(home-content): route, sidebar nav, access control, env types`.
