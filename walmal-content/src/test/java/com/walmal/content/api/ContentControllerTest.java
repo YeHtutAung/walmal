@@ -240,6 +240,22 @@ class ContentControllerTest {
     }
 
     @Test
+    @DisplayName("should_return400_when_uploadWithTraversalSection")
+    void should_return400_when_uploadWithTraversalSection() throws Exception {
+        AuthenticatedPrincipal staff = new AuthenticatedPrincipal(UUID.randomUUID(), "staff1", "STAFF");
+        // A valid PNG, but a path-traversal section value must be rejected before it
+        // reaches the storage key builder.
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "hero.png", MediaType.IMAGE_PNG_VALUE, new byte[]{1, 2, 3, 4});
+
+        mockMvc.perform(multipart("/api/v1/content/images")
+                        .file(file)
+                        .param("section", "../evil")
+                        .with(authentication(buildAuth(staff))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     @DisplayName("should_return400_when_uploadNonImageContentType")
     void should_return400_when_uploadNonImageContentType() throws Exception {
         AuthenticatedPrincipal staff = new AuthenticatedPrincipal(UUID.randomUUID(), "staff1", "STAFF");

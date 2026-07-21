@@ -119,6 +119,39 @@ class HomeContentServiceImplTest {
         assertThat(existing.getUpdatedBy()).isEqualTo("alice");
     }
 
+    @Test
+    void should_auditBeforeSave_when_savingDraft() {
+        when(repository.findById(ContentStatus.DRAFT)).thenReturn(Optional.empty());
+
+        service.saveDraft(sampleContent, "alice");
+
+        // audit BEFORE persisting the draft row — audit-before-write rule
+        InOrder inOrder = inOrder(auditService, repository);
+        inOrder.verify(auditService).log(any(AuditEntry.class));
+        inOrder.verify(repository).save(any(ContentHome.class));
+    }
+
+    @Test
+    void should_logCorrectAuditEntry_when_savingDraft() {
+        HomeContent oldContent = new HomeContent(
+                new Hero("Old", "Old headline", null, new Cta("Old", "/old"), null, null),
+                List.of(), new Promo("x", "y", null, new Cta("z", "/z"), null));
+        ContentHome existing = new ContentHome(ContentStatus.DRAFT, oldContent, "bob");
+        when(repository.findById(ContentStatus.DRAFT)).thenReturn(Optional.of(existing));
+
+        service.saveDraft(sampleContent, "alice");
+
+        ArgumentCaptor<AuditEntry> auditCaptor = ArgumentCaptor.forClass(AuditEntry.class);
+        verify(auditService).log(auditCaptor.capture());
+        AuditEntry entry = auditCaptor.getValue();
+        assertThat(entry.tableName()).isEqualTo("content_home");
+        assertThat(entry.action()).isEqualTo(AuditAction.UPDATE);
+        assertThat(entry.recordId()).isNotNull();
+        assertThat(entry.oldValue()).isNotNull();        // JSON of the pre-existing draft
+        assertThat(entry.newValue()).isNotNull();        // JSON of the new draft
+        assertThat(entry.performedBy()).isEqualTo("alice");
+    }
+
     // ── publish ───────────────────────────────────────────────────────────────
 
     @Test

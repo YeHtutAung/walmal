@@ -34,8 +34,9 @@ import java.util.UUID;
  * <p>DIP: image storage is delegated to {@link ContentImageStorageAdapter} (never the
  * MinIO SDK directly); auditing goes through the {@link AuditService} interface.</p>
  *
- * <p>Audit rule: {@link #publish} writes to the audit log <em>before</em> the destructive
- * upsert of the PUBLISHED row, per the platform audit-before-write rule.</p>
+ * <p>Audit rule: both {@link #saveDraft} and {@link #publish} write to the audit log
+ * <em>before</em> the destructive upsert of the DRAFT/PUBLISHED row, per the platform
+ * audit-before-write rule.</p>
  */
 @Service
 @Transactional
@@ -111,6 +112,17 @@ public class HomeContentServiceImpl implements HomeContentService {
 
     @Override
     public void saveDraft(HomeContent content, String performedBy) {
+        String oldDraftJson = repository.findById(ContentStatus.DRAFT)
+                .map(existing -> toJson(existing.getContent()))
+                .orElse(null);
+        String newDraftJson = toJson(content);
+
+        // AUDIT FIRST — before the destructive upsert of the DRAFT row, per the
+        // platform audit-before-write rule (mirrors publish()).
+        auditService.log(new AuditEntry(
+                "content_home", CONTENT_HOME_AUDIT_ID, AuditAction.UPDATE,
+                oldDraftJson, newDraftJson, performedBy));
+
         upsert(ContentStatus.DRAFT, content, performedBy);
         log.info("Home content draft saved by {}", performedBy);
     }

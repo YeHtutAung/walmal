@@ -169,6 +169,11 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?see .env.production.example}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?see .env.production.example}
       WALMAL_JWT_SECRET: ${WALMAL_JWT_SECRET:?see .env.production.example}
+      # Gates draft home-content preview reads (GET /api/v1/content/home/draft
+      # ?previewToken=...). Fail-closed: `:?` makes compose refuse to start if
+      # unset, so prod can never fall back to the public dev default baked into
+      # application.yml.
+      CONTENT_PREVIEW_TOKEN: ${CONTENT_PREVIEW_TOKEN:?see .env.production.example}
       WALMAL_CORS_ALLOWED_ORIGINS: ${WALMAL_CORS_ALLOWED_ORIGINS:?see .env.production.example}
       WALMAL_TRUST_PROXY: ${WALMAL_TRUST_PROXY:-true}
       # Stripe stays in TEST mode (public demo store) — see docs/DEPLOYMENT.md.

@@ -51,6 +51,15 @@ import java.util.Optional;
 @Tag(name = "Home Content", description = "Editable home-page CMS document (hero, category tiles, promo) with draft/publish lifecycle")
 public class ContentController {
 
+    /**
+     * The only home-page sections that own images. {@code section} flows into the
+     * storage key ({@code home/{section}/...}) and, unlike {@code filename}, is not
+     * sanitized downstream — so it is allow-listed here to prevent path traversal
+     * (e.g. {@code ../evil}) into the object key.
+     */
+    private static final java.util.regex.Pattern SECTION_PATTERN =
+            java.util.regex.Pattern.compile("^(hero|tile|promo)$");
+
     private final HomeContentService homeContentService;
     private final String previewToken;
 
@@ -76,12 +85,13 @@ public class ContentController {
 
     @Operation(summary = "Get draft home content",
             description = "Returns the editor's draft document (DRAFT → PUBLISHED → DEFAULT fallback). "
-                    + "Dual-auth: pass a valid previewToken query param, or authenticate as ADMIN/STAFF.",
+                    + "Dual-auth: pass a valid previewToken query param, or authenticate as ADMIN/STAFF. "
+                    + "On failure the controller throws AccessDeniedException, which the app's "
+                    + "GlobalExceptionHandler renders as 403 for both the missing-token and wrong-role cases.",
             security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Draft returned"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "No valid preview token and not authenticated"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Authenticated but lacks a valid token and ADMIN/STAFF role")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "No valid preview token and not an authenticated ADMIN/STAFF")
     })
     @GetMapping("/home/draft")
     public ResponseEntity<ApiResponse<HomeContent>> getDraft(
@@ -151,6 +161,10 @@ public class ContentController {
             @RequestParam String section,
             @RequestParam MultipartFile file,
             @AuthenticationPrincipal AuthenticatedPrincipal principal) throws IOException {
+
+        if (section == null || !SECTION_PATTERN.matcher(section).matches()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalid section");
+        }
 
         String contentType = file.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) {
