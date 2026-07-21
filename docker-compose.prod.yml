@@ -236,6 +236,11 @@ services:
       # NEXT_PUBLIC_* values are baked in at CI build time (see
       # walmal-store's build-and-push job) — not runtime env here.
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:?see .env.production.example}
+      # Server-side token for the Home-Page CMS preview: the /api/preview route
+      # validates the incoming token against this, and fetchHomeContent forwards
+      # it to the backend draft endpoint. MUST equal the backend's
+      # CONTENT_PREVIEW_TOKEN (same value feeds app, store, and the admin build).
+      CONTENT_PREVIEW_TOKEN: ${CONTENT_PREVIEW_TOKEN:?see .env.production.example}
       # The store's /api/minio proxy route reads this at runtime (defaults
       # to http://localhost:9000 for dev); in this stack MinIO is reachable
       # only by service name on the backend network. Static topology fact —
