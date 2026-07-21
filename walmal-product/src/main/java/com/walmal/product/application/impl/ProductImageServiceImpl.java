@@ -147,7 +147,15 @@ public class ProductImageServiceImpl implements ProductImageService {
         imageRepository.findByProductIdAndPrimaryTrue(productId)
                 .ifPresent(existing -> {
                     existing.setPrimary(false);
-                    imageRepository.save(existing);
+                    // saveAndFlush (not save): the "clear old primary" UPDATE must hit
+                    // the DB BEFORE the caller sets the new primary. Both run in the same
+                    // @Transactional, but Hibernate does not order updates by call order at
+                    // flush time — it can flush the "set new = TRUE" UPDATE first, which
+                    // then collides with this still-TRUE row and violates the non-deferrable
+                    // partial unique index idx_product_images_primary_per_product. Flushing
+                    // here forces the correct order (clear → then set). Flush is not commit,
+                    // so a later failure still rolls the whole transaction back.
+                    imageRepository.saveAndFlush(existing);
                 });
     }
 

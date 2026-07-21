@@ -12,7 +12,9 @@ import com.walmal.product.api.dto.request.CreateProductRequest;
 import com.walmal.product.api.dto.request.CreateVariantRequest;
 import com.walmal.product.api.dto.request.SetPriceRequest;
 import com.walmal.product.api.dto.response.CategoryResponse;
+import com.walmal.product.api.dto.response.ImageResponse;
 import com.walmal.product.application.ProductCatalogService;
+import com.walmal.product.application.ProductImageService;
 import com.walmal.product.application.ProductManagementService;
 import com.walmal.product.application.ProductPricingService;
 import com.walmal.product.application.dto.PriceDto;
@@ -80,6 +82,7 @@ class ProductIntegrationTest {
     @Autowired ProductManagementService managementService;
     @Autowired ProductCatalogService catalogService;
     @Autowired ProductPricingService pricingService;
+    @Autowired ProductImageService imageService;
     @Autowired JdbcTemplate jdbcTemplate;
 
     // ── Lifecycle: create category → product → variant → SKU lookup ──────────
@@ -204,6 +207,47 @@ class ProductIntegrationTest {
                 "  AND performed_by = 'auditor'",
                 Integer.class, product.productId().toString());
         assertThat(productAuditCount).as("audit_log row for deactivateProduct").isGreaterThanOrEqualTo(1);
+    }
+
+    // ── Set primary image when a primary already exists ──────────────────────
+    // Regression: promoting a second image to primary while the product already
+    // has one must NOT violate the partial unique index
+    // idx_product_images_primary_per_product. The clear-old-primary UPDATE has to
+    // reach the DB before the set-new-primary UPDATE; without the saveAndFlush in
+    // clearExistingPrimary, Hibernate could flush "set new = TRUE" first and fail
+    // with a duplicate-key error (HTTP 500 in the admin "Set Primary" action).
+    @Test
+    void should_promoteSecondImageToPrimary_when_productAlreadyHasAPrimary() {
+        CategoryResponse category = managementService.createCategory(
+                new CreateCategoryRequest("Primary Img Cat",
+                        "primary-img-cat-" + UUID.randomUUID(), null));
+        ProductDetailDto product = managementService.createProduct(
+                new CreateProductRequest(category.id(), "Primary Img Product",
+                        "primary-img-product-" + UUID.randomUUID(), null, null),
+                "test-admin");
+        UUID productId = product.productId();
+
+        ImageResponse first = imageService.uploadImage(productId, null,
+                new java.io.ByteArrayInputStream(new byte[]{1, 2, 3}), "first.png",
+                "image/png", 3L, "", true, "test-admin");
+        ImageResponse second = imageService.uploadImage(productId, null,
+                new java.io.ByteArrayInputStream(new byte[]{4, 5, 6}), "second.png",
+                "image/png", 3L, "", false, "test-admin");
+        assertThat(first.primary()).isTrue();
+        assertThat(second.primary()).isFalse();
+
+        // The operation that failed in production before the fix.
+        imageService.setPrimaryImage(second.id(), "test-admin");
+
+        Integer primaryCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM product_images WHERE product_id = ?::uuid AND is_primary = TRUE",
+                Integer.class, productId.toString());
+        assertThat(primaryCount).as("exactly one primary image per product").isEqualTo(1);
+
+        Boolean secondIsPrimary = jdbcTemplate.queryForObject(
+                "SELECT is_primary FROM product_images WHERE id = ?::uuid",
+                Boolean.class, second.id().toString());
+        assertThat(secondIsPrimary).as("second image promoted to primary").isTrue();
     }
 
     // ── Test infrastructure configuration ────────────────────────────────────
