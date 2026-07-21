@@ -54,6 +54,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
     "spring.datasource.password=walmal",
     "spring.jpa.hibernate.ddl-auto=validate",
     "spring.flyway.enabled=true",
+    // Read migrations straight from walmal-app's canonical dir (resolved from this
+    // module's basedir, where surefire runs) instead of copying the whole V1..Vn
+    // chain into this module's test resources — a copy that silently rots every
+    // time a new migration lands in walmal-app. `filesystem:` keeps the test
+    // self-contained (creates the schema on a fresh DB, validates on an existing one).
+    "spring.flyway.locations=filesystem:../walmal-app/src/main/resources/db/migration",
     "walmal.content.preview-token=test-preview"
 })
 class ContentIntegrationTest {
