@@ -116,6 +116,14 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public ResponseEntity<ApiResponse<Void>> handleResponseStatus(
+            org.springframework.web.server.ResponseStatusException ex) {
+        logWarn(ex);
+        return ResponseEntity.status(ex.getStatusCode())
+                .body(ApiResponse.error(ex.getReason() != null ? ex.getReason() : "Request failed"));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleAll(Exception ex) {
         String correlationId = MDC.get("correlationId");

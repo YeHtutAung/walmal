@@ -14,7 +14,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
         "com.walmal.order.infrastructure",
         "com.walmal.pos.infrastructure",
         "com.walmal.warehouse.infrastructure",
-        "com.walmal.notification.infrastructure"
+        "com.walmal.notification.infrastructure",
+        "com.walmal.content.infrastructure"
 })
 public class WalmalApplication {
 
