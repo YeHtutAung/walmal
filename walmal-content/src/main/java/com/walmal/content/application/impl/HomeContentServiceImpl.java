@@ -113,18 +113,19 @@ public class HomeContentServiceImpl implements HomeContentService {
 
     @Override
     public void saveDraft(HomeContent content, String performedBy) {
-        String oldDraftJson = repository.findById(ContentStatus.DRAFT)
-                .map(existing -> toJson(existing.getContent()))
-                .orElse(null);
-        String newDraftJson = toJson(content);
+        // Fetch the DRAFT row once and reuse it for both the audit old-value and the
+        // upsert (avoids a redundant second SELECT of the same row).
+        Optional<ContentHome> existing = repository.findById(ContentStatus.DRAFT);
+        String oldDraftJson = existing.map(row -> toJson(row.getContent())).orElse(null);
 
         // AUDIT FIRST — before the destructive upsert of the DRAFT row, per the
-        // platform audit-before-write rule (mirrors publish()).
+        // platform audit-before-write rule. Action UPDATE marks a content edit,
+        // distinct from publish()'s STATUS_CHANGE.
         auditService.log(new AuditEntry(
                 "content_home", CONTENT_HOME_AUDIT_ID, AuditAction.UPDATE,
-                oldDraftJson, newDraftJson, performedBy));
+                oldDraftJson, toJson(content), performedBy));
 
-        upsert(ContentStatus.DRAFT, content, performedBy);
+        upsert(ContentStatus.DRAFT, existing, content, performedBy);
         log.info("Home content draft saved by {}", performedBy);
     }
 
@@ -133,17 +134,18 @@ public class HomeContentServiceImpl implements HomeContentService {
         ContentHome draft = repository.findById(ContentStatus.DRAFT)
                 .orElseThrow(() -> new IllegalStateException("No draft to publish"));
 
-        String oldPublishedJson = repository.findById(ContentStatus.PUBLISHED)
-                .map(existing -> toJson(existing.getContent()))
-                .orElse(null);
-        String newDraftJson = toJson(draft.getContent());
+        // Fetch the PUBLISHED row once — reused for the audit old-value and the upsert.
+        Optional<ContentHome> existingPublished = repository.findById(ContentStatus.PUBLISHED);
+        String oldPublishedJson = existingPublished.map(row -> toJson(row.getContent())).orElse(null);
 
-        // AUDIT FIRST — before the destructive upsert of the PUBLISHED row.
+        // AUDIT FIRST — before the destructive upsert of the PUBLISHED row. Action
+        // STATUS_CHANGE marks a draft→published lifecycle promotion, so publishes are
+        // queryable apart from routine draft edits (which log UPDATE).
         auditService.log(new AuditEntry(
-                "content_home", CONTENT_HOME_AUDIT_ID, AuditAction.UPDATE,
-                oldPublishedJson, newDraftJson, performedBy));
+                "content_home", CONTENT_HOME_AUDIT_ID, AuditAction.STATUS_CHANGE,
+                oldPublishedJson, toJson(draft.getContent()), performedBy));
 
-        upsert(ContentStatus.PUBLISHED, draft.getContent(), performedBy);
+        upsert(ContentStatus.PUBLISHED, existingPublished, draft.getContent(), performedBy);
         log.info("Home content published by {}", performedBy);
     }
 
@@ -162,14 +164,17 @@ public class HomeContentServiceImpl implements HomeContentService {
     // ── Private helpers ───────────────────────────────────────────────────────
 
     /**
-     * Upserts the row for the given lifecycle status: updates in place if present,
-     * otherwise inserts a new row, then persists.
+     * Upserts the row for the given lifecycle status from an already-fetched
+     * {@code existing} row: updates it in place if present, otherwise inserts a new
+     * row, then persists. Callers pass the row they already read (for the audit
+     * old-value), so this does not re-query.
      */
-    private void upsert(String status, HomeContent content, String performedBy) {
-        ContentHome row = repository.findById(status)
-                .map(existing -> {
-                    existing.update(content, performedBy);
-                    return existing;
+    private void upsert(String status, Optional<ContentHome> existing,
+                        HomeContent content, String performedBy) {
+        ContentHome row = existing
+                .map(e -> {
+                    e.update(content, performedBy);
+                    return e;
                 })
                 .orElseGet(() -> new ContentHome(status, content, performedBy));
         repository.save(row);

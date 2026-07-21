@@ -186,7 +186,7 @@ class HomeContentServiceImplTest {
         verify(auditService).log(auditCaptor.capture());
         AuditEntry entry = auditCaptor.getValue();
         assertThat(entry.tableName()).isEqualTo("content_home");
-        assertThat(entry.action()).isEqualTo(AuditAction.UPDATE);
+        assertThat(entry.action()).isEqualTo(AuditAction.STATUS_CHANGE); // publish = lifecycle promotion, not a plain edit
         assertThat(entry.recordId()).isNotNull();
         assertThat(entry.oldValue()).isNull();          // nothing previously published
         assertThat(entry.newValue()).isNotNull();       // JSON of the draft being published
