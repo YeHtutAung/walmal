@@ -244,7 +244,10 @@ public interface ContentHomeRepository extends JpaRepository<ContentHome, String
     "spring.datasource.username=walmal",
     "spring.datasource.password=walmal",
     "spring.jpa.hibernate.ddl-auto=validate",
-    "spring.flyway.enabled=true"
+    "spring.flyway.enabled=true",
+    // ContentController @Value binds this with no in-annotation default, so the
+    // @SpringBootTest context fails to boot without it (unresolved placeholder).
+    "walmal.content.preview-token=test-preview"
 })
 class ContentIntegrationTest {
     @Autowired ContentHomeRepository repository;
