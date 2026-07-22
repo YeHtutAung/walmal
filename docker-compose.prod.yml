@@ -165,7 +165,13 @@ services:
       SPRING_RABBITMQ_USERNAME: ${SPRING_RABBITMQ_USERNAME:?see .env.production.example}
       SPRING_RABBITMQ_PASSWORD: ${SPRING_RABBITMQ_PASSWORD:?see .env.production.example}
       MINIO_URL: http://minio:9000
-      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://minio:9000}
+      # Public base URL the backend stamps onto image URLs it hands to
+      # browsers (product/content images). Must be a publicly reachable
+      # HTTPS origin, NOT the internal service address — the admin SPA
+      # renders these straight into <img> and cannot proxy them. Defaults to
+      # the img. subdomain Caddy serves (see deploy/Caddyfile); override only
+      # to point at an external CDN/bucket.
+      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-https://img.${WALMAL_DOMAIN}}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?see .env.production.example}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?see .env.production.example}
       WALMAL_JWT_SECRET: ${WALMAL_JWT_SECRET:?see .env.production.example}

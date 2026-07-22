@@ -24,7 +24,7 @@ editorial content; net-new beyond the original 9-step build order, see
 | postgres 15 | 5432 | primary DB |
 | redis 7 | 6379 | cache / session / locks |
 | rabbitmq 3-management | 5672 AMQP, 15672 mgmt UI | message broker |
-| minio | 9000 API, 9001 console | S3-compatible file storage. Buckets created lazily on first upload: `product-images`, `content-images` (both public-read). |
+| minio | 9000 API, 9001 console | S3-compatible file storage. Buckets created lazily on first upload: `product-images`, `content-images` (both public-read). In prod, they are exposed publicly over HTTPS at `img.{$WALMAL_DOMAIN}` via a Caddy allow-list — only GET/HEAD on `/product-images/*` and `/content-images/*` reach MinIO; everything else (writes, the `/minio/*` admin API, ListBuckets, any other bucket) 404s at the edge, and the `:9001` console is not proxied. Browsers load images by absolute URL, so the admin SPA (no proxy of its own) renders them directly. |
 | mailhog | 1025 SMTP, 8025 UI | dev email sink |
 | app (Spring Boot) | 8080 | built image; **`profiles: ["full"]` — NOT started by a bare `docker compose up`**. Dev/E2E use the JAR directly instead; run the container with `docker compose --profile full up -d --wait`. |
 
@@ -126,7 +126,13 @@ Editable home-page document (hero, category tiles, promo) with a draft → publi
 - `SPRING_DATASOURCE_URL/USERNAME/PASSWORD` — Postgres connection
 - `SPRING_DATA_REDIS_HOST/PORT/PASSWORD` — Redis connection
 - `SPRING_RABBITMQ_HOST/PORT/USERNAME/PASSWORD/VIRTUAL_HOST` — RabbitMQ
-- `MINIO_URL`, `MINIO_PUBLIC_URL`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` — MinIO
+- `MINIO_URL`, `MINIO_PUBLIC_URL`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` — MinIO.
+  `MINIO_URL` is the internal address (`http://minio:9000`) the backend uses to
+  put/get objects; `MINIO_PUBLIC_URL` is the public base URL the backend stamps
+  onto image URLs it returns to browsers. **`MINIO_PUBLIC_URL` must be a public
+  HTTPS origin, not `http://minio:9000`** — the internal hostname doesn't resolve
+  in a browser, which breaks admin product images. Prod defaults it to
+  `https://img.{$WALMAL_DOMAIN}` (needs an `img.` DNS A-record).
 - `SPRING_MAIL_HOST/PORT/USERNAME/PASSWORD` — SMTP (MailHog in dev)
 - `WALMAL_CORS_ALLOWED_ORIGINS` — comma-separated allowed origins
 - `WALMAL_RATE_LIMIT_AUTHENTICATED` — req/min for auth'd users (default 60)
@@ -168,7 +174,7 @@ Editable home-page document (hero, category tiles, promo) with a draft → publi
 
 ### Deployment (`docker-compose.prod.yml` / `deploy/Caddyfile`, not Spring properties)
 - `WALMAL_DOMAIN` — bare apex domain; Caddy builds
-  `shop./admin./api./status./mail.{$WALMAL_DOMAIN}` from it.
+  `shop./admin./api./img./status./mail.{$WALMAL_DOMAIN}` from it.
 - `ACME_EMAIL` — Let's Encrypt registration/expiry-notice address (Caddy
   global `email` option).
 - `MAILHOG_BASIC_AUTH` — one "username bcrypt-hash" line (from

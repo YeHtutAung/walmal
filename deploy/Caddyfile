@@ -6,12 +6,16 @@
 # {$MAILHOG_BASIC_AUTH} are read from the caddy container's environment
 # (populated from the host .env — see .env.production.example).
 #
-# Five subdomains, one IP, one Caddyfile:
+# Six subdomains, one IP, one Caddyfile:
 #   shop.{$WALMAL_DOMAIN}   -> storefront (Next.js)
 #   admin.{$WALMAL_DOMAIN}  -> admin SPA (nginx, its own JWT login — no
 #                               extra proxy auth needed, enforcement is
 #                               real on the backend)
 #   api.{$WALMAL_DOMAIN}    -> Spring Boot backend
+#   img.{$WALMAL_DOMAIN}    -> MinIO object storage, GET/HEAD only (public
+#                               product/content images; buckets are already
+#                               public-read, writes still need S3 creds and
+#                               are blocked at the edge by method)
 #   status.{$WALMAL_DOMAIN} -> Uptime Kuma status page
 #   mail.{$WALMAL_DOMAIN}   -> MailHog UI, Caddy basic-auth gated (demo
 #                               feature — "see the emails the shop sends";
@@ -68,6 +72,38 @@ api.{$WALMAL_DOMAIN} {
 		max_size 20MB
 	}
 	reverse_proxy app:8080
+}
+
+img.{$WALMAL_DOMAIN} {
+	import hsts
+	# Public read-only edge for MinIO, scoped to exactly the two public image
+	# buckets (product-images, content-images), which already carry a
+	# GetObject-only public-read policy. This makes them reachable over HTTPS
+	# from any browser — the admin SPA has no image proxy of its own, unlike
+	# the storefront.
+	#
+	# Security boundary is a POSITIVE allow-list, not just method filtering:
+	# only GET/HEAD on /product-images/* or /content-images/* is proxied.
+	# Everything else — writes, the MinIO admin API (/minio/*), a ListBuckets
+	# on /, any future private bucket — falls through to 404 and never reaches
+	# MinIO. (Sub-resource verbs like ?policy/?uploads are also denied by the
+	# bucket policy; the MinIO console on :9001 is a different port, not here.)
+	@images {
+		method GET HEAD
+		path /product-images/* /content-images/*
+	}
+	handle @images {
+		# Strip MinIO fingerprint/version headers from anonymous responses.
+		header -Server
+		header -x-amz-request-id
+		header -x-amz-id-2
+		# No `encode`: these objects (webp/jpg/png/avif) are already compressed.
+		reverse_proxy minio:9000
+	}
+	# Default: anything not matching the allow-list above.
+	handle {
+		respond 404
+	}
 }
 
 status.{$WALMAL_DOMAIN} {
